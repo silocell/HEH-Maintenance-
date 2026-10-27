@@ -463,7 +463,7 @@ body.demo #mainPanel .sec.off{ opacity:.42; pointer-events:none; user-select:non
           <span id="schoolState">Checking…</span>
           <button type="button" class="abtn" id="schoolToggle" disabled>—</button>
         </div>
-        <p class="amsg" id="schoolMsg">On: your school account is an admin and shows "Admin". Off: it's a helper and shows "Helper". Only this account can change it.</p>
+        <p class="amsg" id="schoolMsg">On: your school account is an admin and shows "Admin". Off: it's a helper and shows "Helper". Only this account can change it, and turning it on needs the secret password.</p>
       </div>
 
       <div class="sec" id="gamesSec">
@@ -782,6 +782,10 @@ function readInvokeError(err){
 }
 
 function show(id){
+  /* Anyone who isn't allowed in (signed out, or not the owner or a helper)
+     gets the site's "404 - File not found" page: a dead end with no hint
+     that a panel lives here. */
+  if(id === "deadEnd"){ try { window.stop(); } catch(e){} location.replace("/404"); return; }
   ["deadEnd","mainPanel"].forEach(function(n){
     document.getElementById(n).hidden = (n !== id);
   });
@@ -1907,19 +1911,44 @@ function loadSchool(){
 }
 function paintSchool(d){
   var st = document.getElementById("schoolState"), b = document.getElementById("schoolToggle");
+  var ask = document.getElementById("schoolAsk");
   st.textContent = d.email + " is " + (d.enabled ? "an admin" : "a helper");
   b.textContent = d.enabled ? "Make it a helper" : "Make it an admin";
   b.className = d.enabled ? "abtn quiet" : "abtn";
   b.disabled = false;
-  b.onclick = function(){
+  if(ask) ask.hidden = true;
+  function send(enabled, secret){
     b.disabled = true;
-    invokeOn("schooladmin", { action:"set", enabled: !d.enabled }).then(function(r){
+    return invokeOn("schooladmin", { action:"set", enabled: enabled, secret: secret || "" }).then(function(r){
       d.enabled = r.enabled;
       paintSchool(d);
       say("schoolMsg", d.enabled
         ? "Done. Your school account is an admin - it shows \u201cAdmin\u201d from its next page load."
         : "Done. Your school account is a helper again.", "ok");
-    }).catch(function(e){ b.disabled = false; say("schoolMsg", e.message, "err"); });
+    }).catch(function(e){ b.disabled = false; say("schoolMsg", e.message, "err"); throw e; });
+  }
+  b.onclick = function(){
+    if(d.enabled){ send(false).catch(function(){}); return; }
+    /* Turning admin on needs the secret password. The server checks it. */
+    if(!d.hasSecret){ say("schoolMsg", "Set the secret password on the server first (set-admin-password.sh).", "err"); return; }
+    if(!ask){
+      ask = document.createElement("form"); ask.id = "schoolAsk"; ask.className = "arow"; ask.style.marginTop = "8px";
+      ask.innerHTML = '<input type="password" id="schoolSecret" autocomplete="off" maxlength="200" aria-label="Secret password" placeholder="Secret password" class="gwhy">' +
+        '<button type="submit" class="abtn">Confirm</button><button type="button" class="abtn quiet" id="schoolCancel">Cancel</button>';
+      b.parentNode.parentNode.insertBefore(ask, b.parentNode.nextSibling);
+      ask.querySelector("#schoolCancel").addEventListener("click", function(){ ask.hidden = true; ask.querySelector("#schoolSecret").value = ""; });
+      ask.addEventListener("submit", function(e){
+        e.preventDefault();
+        var box = ask.querySelector("#schoolSecret"), v = box.value;
+        if(!v) return;
+        box.value = "";
+        ask.querySelector("button[type=submit]").disabled = true;
+        ask.paint(v).catch(function(){}).then(function(){ ask.querySelector("button[type=submit]").disabled = false; box.focus(); });
+      });
+    }
+    ask.paint = function(v){ return send(true, v); };
+    ask.hidden = false;
+    ask.querySelector("#schoolSecret").focus();
   };
 }
 
