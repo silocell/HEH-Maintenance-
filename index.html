@@ -304,6 +304,8 @@ button,input,select,textarea{font:inherit;color:inherit}
   border-top:1px solid var(--rule);font-size:.84rem;
 }
 .check:first-child{border-top:none}
+.check-head{margin:14px 0 2px;font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint)}
+.check-head + .check{border-top:none}
 .check-name{font-weight:600;flex:0 0 150px}
 .check-detail{color:var(--ink-soft);min-width:0;overflow-wrap:anywhere}
 /* How long it took, not just whether it worked. */
@@ -702,6 +704,7 @@ body.demo #mainPanel .sec.off{ opacity:.42; pointer-events:none; user-select:non
         <div class="arow">
           <button type="button" class="abtn quiet" id="runDiag">Run checks</button>
           <button type="button" class="abtn quiet" id="testExplain">Test the explainer</button>
+          <button type="button" class="abtn quiet" id="testClaude">Test Claude</button>
         </div>
         <div id="diagOut"></div>
         <p class="amsg" id="diagMsg"></p>
@@ -3126,7 +3129,14 @@ document.getElementById("runDiag").addEventListener("click",function(){
   say("diagMsg","Checking…");
   call({ action:"diag" }).then(function(d){
     say("diagMsg","");
-    (d.checks||[]).forEach(function(c){
+    (d.checks||[]).forEach(function(c){ diagRow(out, c); });
+  }).catch(function(e){ diagRow(out, { name:"Server checks", ok:false, detail:e.message }); })
+    .then(function(){ say("diagMsg","Checking the newer parts…"); return newChecks(out); })
+    .then(function(){ say("diagMsg",""); btn.disabled = false; });
+});
+
+/* One line of the checks list: a dot, a name, what it found, how long. */
+function diagRow(out, c){
       var row = document.createElement("div");
       row.className = "check" + (c.ok ? "" : " bad");
       var dot = document.createElement("span"); dot.className = "check-dot";
@@ -3144,8 +3154,124 @@ document.getElementById("runDiag").addEventListener("click",function(){
         row.appendChild(ms);
       }
       out.appendChild(row);
+}
+
+/* ---------- the newer parts ----------
+   The server's own diag covers the database and the core functions.
+   These cover what came later: the games lock and switches, the tags,
+   the school-account switch, profiles, the light/dark cookie, and the
+   sites on their own addresses. Each one is timed, and a failure in one
+   never stops the rest. Owner-only things say "owner only" for the demo
+   and helper accounts instead of failing. */
+var WHO = null;
+function timed(name, run){
+  var t0 = Date.now();
+  return Promise.resolve().then(run).then(function(r){
+    return { name:name, ok:r.ok !== false, detail:r.detail, ms:Date.now() - t0 };
+  }, function(e){
+    return { name:name, ok:false, detail:(e && e.message) || "No reply.", ms:Date.now() - t0 };
+  });
+}
+function ownerOnly(name, run){
+  if(WHO && WHO.owner) return timed(name, run);
+  return Promise.resolve({ name:name, ok:true, detail:"Owner only - skipped for this account." });
+}
+function rpc(fn){
+  return sb.rpc(fn).then(function(r){ if(r.error) throw new Error(r.error.message || "Refused."); return r.data; });
+}
+var SITES = [
+  ["Main site",   "https://civilinitiatives.org/",              "Homework Launchpad"],
+  ["Play",        "https://play.civilinitiatives.org/",         "Games"],
+  ["Arcade",      "https://arcade.civilinitiatives.org/",       "Arcade"],
+  ["Doodles",     "https://doodles.civilinitiatives.org/",      "Doodles"],
+  ["Scratch",     "https://games.civilinitiatives.org/",        ""],
+  ["Learn",       "https://learn.civilinitiatives.org/",        ""],
+  ["Gate Run",    "https://gaterun.civilinitiatives.org/",      ""],
+  ["Helpers",     "https://helpers.civilinitiatives.org/",      ""],
+  ["404 page",    "https://civilinitiatives.org/404",           "File not found"]
+];
+function siteCheck(s){
+  return timed("Site: " + s[0], function(){
+    return fetch(s[1] + (s[1].indexOf("?") < 0 ? "?diag=" : "&diag=") + Date.now(), { cache:"no-store" }).then(function(r){
+      var want404 = /404$/.test(s[1]);
+      return r.text().then(function(t){
+        var title = (t.match(/<title>([^<]*)/i) || [])[1] || "";
+        if(want404 ? r.status !== 404 : !r.ok) return { ok:false, detail:"Answered " + r.status + "." };
+        if(s[2] && t.indexOf(s[2]) < 0) return { ok:false, detail:"Up, but not the page expected (\"" + title.trim() + "\")." };
+        return { detail:(want404 ? "Shows the crest 404" : "Up") + (title ? " - " + title.trim() : "") + (location.protocol === "https:" ? ", over HTTPS" : "") };
+      });
     });
-  }).catch(function(e){ say("diagMsg", e.message, "err"); })
+  });
+}
+function newChecks(out){
+  var jobs = [
+    timed("Games lock", function(){
+      return rpc("my_games").then(function(d){
+        d = d || {};
+        return { detail:"my_games() answers: " + (d.allowed ? (d.level === "learning" ? "learning games only" : "all games") : "games off") + " for this account." };
+      });
+    }),
+    ownerOnly("Games switches", function(){
+      return invokeOn("gamesaccess", { action:"list" }).then(function(d){
+        var p = d.people || [], n = { off:0, learning:0, all:0 };
+        p.forEach(function(x){ n[x.level] = (n[x.level] || 0) + 1; });
+        return { detail:p.length + " accounts - " + n.all + " all games, " + n.learning + " learning only, " + n.off + " off." };
+      });
+    }),
+    timed("Helper/Admin tags", function(){
+      return rpc("staff_tags").then(function(rows){
+        rows = rows || [];
+        var a = rows.filter(function(r){ return r.tag === "admin"; }).length;
+        return { ok:a > 0, detail:a + " admin, " + (rows.length - a) + " helper" + (rows.length - a === 1 ? "" : "s") + (a ? "." : " - nobody shows the Admin tag.") };
+      });
+    }),
+    ownerOnly("School account admin", function(){
+      return invokeOn("schooladmin", { action:"get" }).then(function(d){
+        if(!d.email) return { detail:"No school account set up." };
+        return { ok:!!d.hasSecret, detail:(d.enabled ? "On (admin)" : "Off (helper)") +
+          (d.hasSecret ? ", secret password set." : " - no secret password yet: run set-admin-password.sh on the server.") };
+      });
+    }),
+    timed("Profiles", function(){
+      return invokeOn("profile", { action:"get" }).then(function(d){
+        return { ok:!!(d.shop && d.shop.length), detail:(d.shop || []).length + " picture parts in the shop; this account has " + d.pts + " Level Up points." };
+      });
+    }),
+    timed("Light/dark sync", function(){
+      var m = document.cookie.match(/(?:^|; )hl_theme=(dark|light|system)/);
+      return { detail: m ? "Shared with every site: " + m[1] + "." : "Nobody has picked one on this browser yet - every site follows the device." };
+    }),
+    ownerOnly("Ask allowance", function(){
+      return invokeOn("askclaude", { action:"check" }).then(function(d){
+        return { detail:d.remaining + " of " + d.limit + " questions left today, " + d.claudeLeft + " of " + d.claudeLimit + " of them Claude." };
+      });
+    })
+  ].concat(SITES.map(siteCheck));
+  /* All at once, but listed in the order above. */
+  return Promise.all(jobs).then(function(rows){
+    var h = document.createElement("p"); h.className = "check-head"; h.textContent = "Newer parts";
+    out.appendChild(h);
+    rows.forEach(function(c){ diagRow(out, c); });
+  });
+}
+
+document.getElementById("testClaude").addEventListener("click",function(){
+  var btn = this;
+  if(btn.disabled) return;
+  if(!(WHO && WHO.owner)){ say("diagMsg","Only the owner can test Claude.","err"); return; }
+  btn.disabled = true;
+  say("diagMsg","Asking Claude to say OK…");
+  /* Doesn't use one of your 5 Claude questions or your 15 a day. */
+  invokeOn("askclaude", { action:"diag" }).then(function(d){
+    var bits = [d.model || "Claude"];
+    bits.push(d.briefingChars ? "briefing read (" + d.briefingChars + " characters)" : "briefing NOT found - it used the short fallback");
+    if(d.ok){
+      say("diagMsg","Claude answered \"" + (d.reply || "") + "\" in " + ((d.ms || 0)/1000).toFixed(1) + "s. " + bits.join(", ") +
+        ". " + d.claudeLeft + " of " + d.claudeLimit + " Claude questions left today.","ok");
+    }else{
+      say("diagMsg","Claude test failed: " + (d.error || "no reply") + " (" + bits.join(", ") + ")","err");
+    }
+  }).catch(function(e){ say("diagMsg","Claude test failed: " + e.message,"err"); })
     .then(function(){ btn.disabled = false; });
 });
 
@@ -3224,6 +3350,7 @@ applyTheme(recall(THEME_KEY,null));
        a public page. Anyone else is refused and sees the same nothing. */
     return call({ action:"whoami" }).then(function(w){
       if(!w || (!w.owner && !w.demo && !w.helper)){ show("deadEnd"); return; }
+      WHO = w;
       showOnly = !!w.demo;
       var helperOnly = !w.owner && !w.demo && !!w.helper;
 
