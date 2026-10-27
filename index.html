@@ -304,6 +304,8 @@ button,input,select,textarea{font:inherit;color:inherit}
   border-top:1px solid var(--rule);font-size:.84rem;
 }
 .check:first-child{border-top:none}
+.gsum{font-weight:600;font-size:.88rem;margin:0 0 10px}
+.pnum{max-width:110px;flex:0 0 auto}
 .check-head{margin:14px 0 2px;font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint)}
 .check-head + .check{border-top:none}
 .check-name{font-weight:600;flex:0 0 150px}
@@ -475,6 +477,16 @@ body.demo #mainPanel .sec.off{ opacity:.42; pointer-events:none; user-select:non
           <button type="button" class="abtn quiet" id="gamesLoad">Refresh</button>
         </div>
         <p class="amsg" id="gamesMsg">Learning only = the learning games, without the fun games or the doodles. New accounts start with games off. Level Up is never switched off here.</p>
+      </div>
+
+      <div class="sec" id="pointsSec" hidden>
+        <p class="sec-h">Give points</p>
+        <p class="gsum" id="pointsSum"></p>
+        <div id="pointsRows"></div>
+        <div class="arow" style="margin-top:8px">
+          <button type="button" class="abtn quiet" id="pointsLoad">Refresh</button>
+        </div>
+        <p class="amsg" id="pointsMsg">Level Up points for testers to try the profile shop. Up to 2,500 in total and 500 per person, counted over the last 3 days. Only the main admin account can give them.</p>
       </div>
 
       <div class="sec" id="switchSec" hidden>
@@ -2030,6 +2042,54 @@ function loadGames(){
 }
 document.getElementById("gamesLoad").addEventListener("click", loadGames);
 
+/* ---------- give points ----------
+   Only the main (Google) admin account gets this section: the server
+   refuses everyone else, and then the section simply stays hidden. The
+   limits are the server's too - 2,500 in total and 500 per person over
+   the last 3 days - this only shows them. */
+function loadPoints(){
+  var sec = document.getElementById("pointsSec"), host = document.getElementById("pointsRows");
+  if(!sec || !canSync()) return Promise.resolve();
+  return invokeOn("givepoints", { action:"list" }).then(function(d){
+    sec.hidden = false;
+    host.textContent = "";
+    var when = d.frees ? new Date(d.frees).toLocaleString([], { weekday:"short", hour:"2-digit", minute:"2-digit" }) : "";
+    document.getElementById("pointsSum").textContent = "\u2b50 " + d.left.toLocaleString() + " of " + d.cap.toLocaleString() +
+      " left to give" + (d.given && when ? " \u00b7 the oldest gift frees up " + when : "") + ".";
+    (d.people || []).forEach(function(u){
+      var label = userNames[u.id] || u.email;
+      var room = Math.min(d.each - u.given, d.left);
+      var card = document.createElement("div"); card.className = "acct";
+      var top = document.createElement("div"); top.className = "acct-top";
+      var nm = document.createElement("span"); nm.className = "acct-email"; nm.textContent = label;
+      var st = document.createElement("span"); st.className = "gstate " + (u.given ? "learn" : "off");
+      st.textContent = "\u2b50 " + u.pts.toLocaleString() + " pts";
+      top.appendChild(nm); top.appendChild(st);
+      var meta = document.createElement("p"); meta.className = "gmeta";
+      meta.textContent = (label !== u.email ? u.email + " \u00b7 " : "") + "Given " + u.given + " of " + d.each + " in these 3 days";
+      var row = document.createElement("div"); row.className = "arow gamesrow";
+      var num = document.createElement("input"); num.type = "number"; num.min = "1"; num.step = "1";
+      num.max = String(Math.max(1, room)); num.value = String(Math.max(0, Math.min(100, room)));
+      num.className = "gwhy pnum"; num.setAttribute("aria-label", "Points to give " + label);
+      var give = document.createElement("button"); give.type = "button"; give.className = "abtn"; give.textContent = "Give";
+      if(room <= 0){ num.disabled = true; give.disabled = true; give.textContent = d.left <= 0 ? "None left" : "At 500"; }
+      give.addEventListener("click", function(){
+        var n = Math.floor(Number(num.value));
+        if(!(n >= 1)) { say("pointsMsg", "How many points?", "err"); return; }
+        give.disabled = true;
+        invokeOn("givepoints", { action:"give", id:u.id, amount:n }).then(function(r){
+          say("pointsMsg", "Gave " + label + " " + n + " points - they have " + r.pts.toLocaleString() + " now.", "ok");
+          return loadPoints();
+        }).catch(function(e){ give.disabled = false; say("pointsMsg", e.message, "err"); });
+      });
+      row.appendChild(num); row.appendChild(give);
+      card.appendChild(top); card.appendChild(meta); card.appendChild(row);
+      host.appendChild(card);
+    });
+  }).catch(function(){ sec.hidden = true; });
+}
+document.getElementById("pointsLoad").addEventListener("click", loadPoints);
+
 /* ---------- technical helper ----------
    One box, two answerers. Quick = the admin function's "ask" (fast).
    Claude = the askclaude function (gets the project briefing and this
@@ -3234,12 +3294,22 @@ function newChecks(out){
     }),
     timed("Profiles", function(){
       return invokeOn("profile", { action:"get" }).then(function(d){
-        return { ok:!!(d.shop && d.shop.length), detail:(d.shop || []).length + " picture parts in the shop; this account has " + d.pts + " Level Up points." };
+        var ach = (d.achievements || []).filter(function(a){ return a.done; }).length;
+        return { ok:!!(d.shop && d.shop.length), detail:(d.shop || []).length + " picture parts in the shop; this account has " + d.pts + " Level Up points, " +
+          (d.pounds || 0) + " Launchpad Pounds and " + ach + " of " + (d.achievements || []).length + " achievements." };
       });
     }),
     timed("Light/dark sync", function(){
       var m = document.cookie.match(/(?:^|; )hl_theme=(dark|light|system)/);
       return { detail: m ? "Shared with every site: " + m[1] + "." : "Nobody has picked one on this browser yet - every site follows the device." };
+    }),
+    ownerOnly("Give points", function(){
+      return invokeOn("givepoints", { action:"list" }).then(function(d){
+        return { detail:d.left + " of " + d.cap + " points left to give in these 3 days (" + d.each + " per person)." };
+      }, function(e){
+        if(/main admin/i.test(e.message)) return { detail:"Main admin account only - skipped." };
+        throw e;
+      });
     }),
     ownerOnly("Ask allowance", function(){
       return invokeOn("askclaude", { action:"check" }).then(function(d){
@@ -3377,7 +3447,7 @@ applyTheme(recall(THEME_KEY,null));
       if(!showOnly){
         peekWatch();
         /* games after the account list, so it can show names, not just addresses */
-        loadUsers().then(loadGames, loadGames);
+        loadUsers().then(loadGames, loadGames).then(loadPoints);
         loadShared();
         loadWords();
         startDay();
