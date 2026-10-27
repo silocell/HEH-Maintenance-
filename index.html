@@ -732,6 +732,7 @@ var SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsIml
    hurt if it got out - and a password is a thing that can be guessed or
    read over a shoulder. */
 var showOnly = false;
+var HELPERS_LIVE = false;   /* true once helpers.civilinitiatives.org is up */
 var SALT = "hl$2026$";
 var THEME_KEY = "hl.theme";
 
@@ -3183,6 +3184,14 @@ applyTheme(recall(THEME_KEY,null));
       if(!w || (!w.owner && !w.demo && !w.helper)){ show("deadEnd"); return; }
       showOnly = !!w.demo;
       var helperOnly = !w.owner && !w.demo && !!w.helper;
+
+      /* Two addresses, one page: the admin panel lives at maintenance.,
+         the helper panel at helpers. Whoever lands on the other one is
+         moved across. (The server still decides what each can do.) */
+      var onHelpers = /^helpers\./i.test(location.hostname);
+      var onMaint = /^maintenance\./i.test(location.hostname);
+      if(onHelpers && !helperOnly){ location.replace("https://maintenance.civilinitiatives.org/" + location.hash); return; }
+      if(onMaint && helperOnly && HELPERS_LIVE){ location.replace("https://helpers.civilinitiatives.org/" + location.hash); return; }
 
       unlocked = true;
       show("mainPanel");
