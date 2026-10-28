@@ -2141,7 +2141,7 @@ function loadPoints(){
     function paint(){
       host.textContent = "";
       var f = (find.value || "").toLowerCase();
-      people.filter(function(u){ return !f || (u.email + " " + (userNames[u.id] || "")).toLowerCase().indexOf(f) >= 0; }).forEach(function(u){
+      people.filter(function(u){ return !f || (u.email + " " + (u.user || "") + " " + (userNames[u.id] || "")).toLowerCase().indexOf(f) >= 0; }).forEach(function(u){
         var label = userNames[u.id] || u.email;
         var card = document.createElement("div"); card.className = "acct";
         var top = document.createElement("div"); top.className = "acct-top";
@@ -2150,7 +2150,7 @@ function loadPoints(){
         st.textContent = u.pts.toLocaleString() + "p · 🪙 " + u.pounds;
         top.appendChild(nm); top.appendChild(st);
         var meta = document.createElement("p"); meta.className = "gmeta";
-        meta.textContent = (label !== u.email ? u.email : "") + (u.photoStatus ? (label !== u.email ? " · " : "") + "photo: " + u.photoStatus : "");
+        meta.textContent = (u.user ? "@" + u.user + " · " : "") + (label !== u.email ? u.email : "") + (u.photoStatus ? " · photo: " + u.photoStatus : "");
         card.appendChild(top); if (meta.textContent) card.appendChild(meta);
         function giveRow(kind, unit, def){
           var row = document.createElement("div"); row.className = "arow gamesrow";
