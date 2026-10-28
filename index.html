@@ -530,6 +530,13 @@ body.demo #mainPanel .sec.off{ opacity:.42; pointer-events:none; user-select:non
         <input type="search" class="gwhy" id="pointsFind" placeholder="Find someone…" aria-label="Find someone" style="margin-bottom:8px;width:100%">
         <datalist id="itemList"></datalist>
         <div id="pointsRows"></div>
+        <div class="acct" id="limBox">
+          <div class="acct-top"><span class="acct-email">💎 Limited items</span></div>
+          <p class="gmeta">How many copies of each exist, the most there can ever be (1 to 5), and who has them. "Take back" removes a copy from someone and puts it back in the shop - it comes round again in the weekly shop.</p>
+          <input type="search" class="gwhy" id="limFind" placeholder="Find an item or a person…" aria-label="Find a limited item" style="width:100%;margin-bottom:6px" hidden>
+          <div id="limRows"></div>
+          <div class="arow"><button type="button" class="abtn quiet" id="limLoad">Load limited items</button></div>
+        </div>
         <div class="acct" id="tradeBox">
           <div class="acct-top"><span class="acct-email">🤝 Recent trades</span></div>
           <p class="gmeta">Every trade between players. If one went wrong - someone was tricked, or a rare item went somewhere it shouldn't - Undo puts everything back (as long as both still have what they got).</p>
@@ -2103,7 +2110,7 @@ document.getElementById("gamesLoad").addEventListener("click", loadGames);
 var ITEMS = null;   /* the shop catalogue, for "give an item" */
 function itemsReady(){
   if (ITEMS) return Promise.resolve(ITEMS);
-  return fetch("https://civilinitiatives.org/shop-catalog.json?v=7").then(function(r){ return r.json(); }).then(function(c){
+  return fetch("https://civilinitiatives.org/shop-catalog.json?v=8").then(function(r){ return r.json(); }).then(function(c){
     ITEMS = c.items.filter(function(i){ return !i.only; });
     var dl = document.getElementById("itemList"); dl.textContent = "";
     ITEMS.forEach(function(i){ var o = document.createElement("option"); o.value = i.name + " (" + i.part + ", " + i.rarity + ") #" + i.id; dl.appendChild(o); });
@@ -2293,6 +2300,57 @@ function openCatalog(title, actionText, onGive){
     paint(); setTimeout(function(){ q.focus(); }, 50);
   }).catch(function(){ say("pointsMsg", "Couldn't load the shop catalogue.", "err"); });
 }
+
+/* limited items: copies out, the limit, who has them, take back */
+var LIM = null;
+function loadLimited(){
+  var host = document.getElementById("limRows"); if (!host) return;
+  host.textContent = "Loading…";
+  Promise.all([invokeOn("givepoints", { action:"limited" }), itemsReady().catch(function(){ return []; })]).then(function(x){ LIM = x[0].items; document.getElementById("limFind").hidden = false; paintLimited(); })
+    .catch(function(e){ host.textContent = e.message; });
+}
+function paintLimited(){
+  var host = document.getElementById("limRows"); host.textContent = "";
+  var f = (document.getElementById("limFind").value || "").toLowerCase();
+  LIM.slice().sort(function(a, b){ return (a.cap || a.base) - (b.cap || b.base) || a.name.localeCompare(b.name); }).forEach(function(it){
+    var who = it.owners.map(function(o){ return (o.user || "") + " " + (o.email || ""); }).join(" ");
+    if (f && (it.name + " " + it.part + " " + who).toLowerCase().indexOf(f) < 0) return;
+    var max = it.cap || it.base;
+    var row = document.createElement("div"); row.style.cssText = "padding:10px 0;border-top:1px solid var(--rule)";
+    var top = document.createElement("div"); top.style.cssText = "display:flex;align-items:center;gap:10px;flex-wrap:wrap";
+    var full = (ITEMS || []).filter(function(i){ return i.id === it.id; })[0];
+    if (full) top.appendChild(itemSwatch(full, true));
+    var nm = document.createElement("b"); nm.textContent = it.name; top.appendChild(nm);
+    var rr = document.createElement("span"); rr.className = "rar " + (it.rarity || ""); rr.textContent = max === 1 ? "one of a kind" : "only " + max; top.appendChild(rr);
+    var cnt = document.createElement("span"); cnt.className = "gmeta"; cnt.textContent = it.sold + " of " + max + " out" + (it.sold >= max ? " · sold out" : ""); top.appendChild(cnt);
+    /* the limit */
+    var sel = document.createElement("select"); sel.className = "gwhy"; sel.setAttribute("aria-label", "Most copies of " + it.name); sel.style.marginLeft = "auto";
+    for (var n = 1; n <= 5; n++) { var o = document.createElement("option"); o.value = String(n); o.textContent = "max " + n + (n === it.base ? " (normal)" : ""); if (n === max) o.selected = true; sel.appendChild(o); }
+    sel.addEventListener("change", function(){
+      var n = Number(sel.value);
+      invokeOn("givepoints", { action:"setCap", item:it.id, cap: n === it.base ? null : n }).then(function(){ say("pointsMsg", it.name + ": at most " + n + " now.", "ok"); loadLimited(); })
+        .catch(function(e){ say("pointsMsg", e.message, "err"); sel.value = String(max); });
+    });
+    top.appendChild(sel); row.appendChild(top);
+    it.owners.forEach(function(o){
+      var line = document.createElement("div"); line.style.cssText = "display:flex;align-items:center;gap:8px;margin:6px 0 0 38px;flex-wrap:wrap";
+      var t = document.createElement("span"); t.className = "gmeta"; t.textContent = "@" + (o.user || "?") + " · " + (o.email || ""); line.appendChild(t);
+      var b = document.createElement("button"); b.type = "button"; b.className = "abtn quiet"; b.textContent = "Take back to the shop";
+      var armed = false, tm = 0;
+      b.addEventListener("click", function(){
+        if (!armed) { armed = true; b.textContent = "Sure? Press again"; tm = setTimeout(function(){ armed = false; b.textContent = "Take back to the shop"; }, 5000); return; }
+        clearTimeout(tm); b.disabled = true;
+        invokeOn("givepoints", { action:"itemReturn", id:o.id, item:it.id }).then(function(){ say("pointsMsg", it.name + " is back in the shop - it'll come round in the weekly shop.", "ok"); loadLimited(); })
+          .catch(function(e){ b.disabled = false; armed = false; b.textContent = "Take back to the shop"; say("pointsMsg", e.message, "err"); });
+      });
+      line.appendChild(b); row.appendChild(line);
+    });
+    if (!it.owners.length) { var none = document.createElement("p"); none.className = "gmeta"; none.style.margin = "4px 0 0 38px"; none.textContent = "Nobody has one yet."; row.appendChild(none); }
+    host.appendChild(row);
+  });
+}
+(function(){ var b = document.getElementById("limLoad"); if (b) b.addEventListener("click", loadLimited);
+  var f = document.getElementById("limFind"); if (f) f.addEventListener("input", function(){ if (LIM) paintLimited(); }); })();
 
 /* trades: the log, and Undo (press twice) */
 function loadTrades(){
