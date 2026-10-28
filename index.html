@@ -483,6 +483,13 @@ body.demo #mainPanel .sec.off{ opacity:.42; pointer-events:none; user-select:non
         <p class="sec-h">Rewards</p>
         <p class="gsum" id="pointsSum"></p>
         <div id="photoQueue"></div>
+        <div class="acct" id="allBox">
+          <div class="acct-top"><span class="acct-email">🎁 Give an item to everyone</span></div>
+          <p class="gmeta">Good for tags - everyone who doesn't have it yet gets one. Limited items have to go one person at a time.</p>
+          <div class="arow gamesrow"><input type="text" class="gwhy" id="allItem" list="itemList" placeholder="Item - start typing its name" aria-label="Item to give everyone" style="flex:1"></div>
+          <div class="arow gamesrow"><input type="text" class="gwhy" id="allSkip" placeholder="Leave out (emails, separated by commas)" aria-label="Emails to leave out" style="flex:1"></div>
+          <div class="arow"><button type="button" class="abtn" id="allGive">Give to everyone</button></div>
+        </div>
         <input type="search" class="gwhy" id="pointsFind" placeholder="Find someone…" aria-label="Find someone" style="margin-bottom:8px;width:100%">
         <datalist id="itemList"></datalist>
         <div id="pointsRows"></div>
@@ -2155,6 +2162,33 @@ function loadPoints(){
   }).catch(function(){ sec.hidden = true; });
 }
 document.getElementById("pointsLoad").addEventListener("click", loadPoints);
+/* one item to every account, leaving out the emails typed in. Asks
+   "Sure?" on the first press so a slip of the finger can't do it. */
+(function(){
+  var btn = document.getElementById("allGive"), sure = false, t = 0;
+  if (!btn) return;
+  function itemId(v){
+    var m = /#([^\s#]+)$/.exec(v.trim());
+    return m ? m[1] : (ITEMS || []).filter(function(x){ return x.name.toLowerCase() === v.trim().toLowerCase(); }).map(function(x){ return x.id; })[0];
+  }
+  btn.addEventListener("click", function(){
+    var id = itemId(document.getElementById("allItem").value);
+    if (!id) { say("pointsMsg", "Pick an item from the list.", "err"); return; }
+    var skip = document.getElementById("allSkip").value.split(/[\s,;]+/).filter(Boolean);
+    if (!sure) {
+      sure = true; btn.textContent = "Sure? Press again" + (skip.length ? " (leaving out " + skip.length + ")" : "");
+      clearTimeout(t); t = setTimeout(function(){ sure = false; btn.textContent = "Give to everyone"; }, 6000);
+      return;
+    }
+    sure = false; clearTimeout(t); btn.disabled = true; btn.textContent = "Giving…";
+    invokeOn("givepoints", { action:"giveItemAll", item:id, except:skip }).then(function(r){
+      say("pointsMsg", "Gave " + r.item + " to " + r.gave + " account(s)" + (r.had ? ", " + r.had + " already had it" : "") +
+        (r.left ? ", left out " + r.left : "") + (r.failed ? ", " + r.failed + " didn't work" : "") + ".", r.failed ? "err" : "ok");
+      document.getElementById("allItem").value = "";
+    }).catch(function(e){ say("pointsMsg", e.message, "err"); })
+      .then(function(){ btn.disabled = false; btn.textContent = "Give to everyone"; });
+  });
+})();
 
 /* ---------- technical helper ----------
    One box, two answerers. Quick = the admin function's "ask" (fast).
