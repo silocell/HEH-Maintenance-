@@ -379,6 +379,42 @@ body.demo #mainPanel .sec.off{ opacity:.42; pointer-events:none; user-select:non
 }
 :fullscreen{position:relative}
 #askInput{width:100%;font:inherit;padding:10px;border:1px solid var(--rule);border-radius:10px;background:var(--paper);color:var(--ink);resize:vertical}
+
+/* ---------- the item catalogue (Rewards) ---------- */
+.catpick{display:flex;align-items:center;gap:10px;flex:1;min-width:0;text-align:left;background:var(--card);color:var(--ink);
+  border:1px solid var(--rule);border-radius:10px;padding:8px 12px;font:inherit;font-size:.92rem;cursor:pointer}
+.catpick .sw{flex:none}
+.catpick span.t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.catwrap{position:fixed;inset:0;z-index:200;background:rgba(5,8,15,.55);display:flex;align-items:flex-end;justify-content:center}
+@media (min-width:700px){.catwrap{align-items:center}}
+.catbox{background:var(--paper);color:var(--ink);width:min(980px,100%);height:min(88vh,860px);border-radius:20px 20px 0 0;
+  display:flex;flex-direction:column;box-shadow:0 30px 80px -20px rgba(0,0,0,.6);overflow:hidden}
+@media (min-width:700px){.catbox{border-radius:20px}}
+.cathead{padding:14px 16px 10px;border-bottom:1px solid var(--rule);display:grid;gap:10px}
+.cattop{display:flex;align-items:center;gap:10px}
+.cattop b{flex:1;font-size:1.05rem}
+.catx{border:0;background:transparent;color:var(--ink);font-size:1.4rem;cursor:pointer;width:40px;height:40px;border-radius:50%}
+.catsearch{width:100%;box-sizing:border-box;font:inherit;font-size:1rem;padding:11px 14px;border-radius:12px;border:1px solid var(--rule);background:var(--card);color:var(--ink)}
+.catchips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;-webkit-overflow-scrolling:touch}
+.catchips button{flex:none;border:1px solid var(--rule);background:var(--card);color:var(--ink);border-radius:999px;padding:6px 12px;font:inherit;font-size:.82rem;cursor:pointer}
+.catchips button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.catcount{font-size:.78rem;opacity:.7}
+.catgrid{flex:1;overflow-y:auto;padding:12px 16px 20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;align-content:start;-webkit-overflow-scrolling:touch}
+.catitem{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 8px;border-radius:14px;border:2px solid var(--rule);background:var(--card);color:var(--ink);cursor:pointer;font:inherit;text-align:center}
+.catitem:hover{border-color:var(--accent)}
+.catitem[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 30%,transparent)}
+.catitem .nm{font-weight:700;font-size:.88rem;line-height:1.2}
+.catitem .meta{font-size:.72rem;opacity:.75}
+.sw{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;background:color-mix(in srgb,var(--ink) 8%,transparent);overflow:hidden}
+.sw.small{width:28px;height:28px;font-size:1rem;border-radius:8px}
+.rar{display:inline-block;padding:1px 7px;border-radius:999px;font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#fff;background:#64748b}
+.rar.rare{background:#2563eb}.rar.epic{background:#7c3aed}.rar.legendary{background:#d97706}.rar.mythic{background:#db2777}
+.rar.exotic{background:linear-gradient(90deg,#06b6d4,#a855f7)}.rar.relic{background:linear-gradient(90deg,#111827,#b45309)}
+.rar.event{background:#0f766e}.rar.tester{background:#16a34a}.rar.staff,.rar.unique{background:#111827}
+.catfoot{padding:12px 16px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--rule);display:flex;align-items:center;gap:12px;background:var(--card)}
+.catfoot .what{flex:1;min-width:0;font-size:.92rem}
+.catfoot .what b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.catempty{grid-column:1/-1;text-align:center;opacity:.7;padding:40px 0}
 </style>
 <link rel="stylesheet" href="https://civilinitiatives.org/polish.css?b=20261021194235">
 
@@ -484,11 +520,12 @@ body.demo #mainPanel .sec.off{ opacity:.42; pointer-events:none; user-select:non
         <p class="gsum" id="pointsSum"></p>
         <div id="photoQueue"></div>
         <div class="acct" id="allBox">
-          <div class="acct-top"><span class="acct-email">🎁 Give an item to everyone</span></div>
-          <p class="gmeta">Good for tags - everyone who doesn't have it yet gets one. Limited items have to go one person at a time.</p>
-          <div class="arow gamesrow"><input type="text" class="gwhy" id="allItem" list="itemList" placeholder="Item - start typing its name" aria-label="Item to give everyone" style="flex:1"></div>
-          <div class="arow gamesrow"><input type="text" class="gwhy" id="allSkip" placeholder="Leave out (emails, separated by commas)" aria-label="Emails to leave out" style="flex:1"></div>
-          <div class="arow"><button type="button" class="abtn" id="allGive">Give to everyone</button></div>
+          <div class="acct-top"><span class="acct-email">🎁 Give an item to lots of people</span></div>
+          <p class="gmeta">Pick the item, then type usernames (like 26paaa) - or leave "Only these people" empty to give it to everyone. Anyone who already has it is skipped. Limited items need usernames.</p>
+          <div class="arow gamesrow"><button type="button" class="catpick" id="allPick"><span class="sw small">🎁</span><span class="t">Choose the item - browse the catalogue</span></button><input type="hidden" id="allItem"></div>
+          <div class="arow gamesrow"><input type="text" class="gwhy" id="allOnly" placeholder="Only these people - usernames like 26paaa, 26pash (empty = everyone)" aria-label="Usernames to give it to" autocapitalize="off" autocorrect="off" spellcheck="false" style="flex:1"></div>
+          <div class="arow gamesrow"><input type="text" class="gwhy" id="allSkip" placeholder="Leave out - usernames or emails" aria-label="Usernames to leave out" autocapitalize="off" autocorrect="off" spellcheck="false" style="flex:1"></div>
+          <div class="arow"><button type="button" class="abtn" id="allGive">Give it</button></div>
         </div>
         <input type="search" class="gwhy" id="pointsFind" placeholder="Find someone…" aria-label="Find someone" style="margin-bottom:8px;width:100%">
         <datalist id="itemList"></datalist>
@@ -2066,7 +2103,7 @@ document.getElementById("gamesLoad").addEventListener("click", loadGames);
 var ITEMS = null;   /* the shop catalogue, for "give an item" */
 function itemsReady(){
   if (ITEMS) return Promise.resolve(ITEMS);
-  return fetch("https://civilinitiatives.org/shop-catalog.json?v=5").then(function(r){ return r.json(); }).then(function(c){
+  return fetch("https://civilinitiatives.org/shop-catalog.json?v=6").then(function(r){ return r.json(); }).then(function(c){
     ITEMS = c.items.filter(function(i){ return !i.only; });
     var dl = document.getElementById("itemList"); dl.textContent = "";
     ITEMS.forEach(function(i){ var o = document.createElement("option"); o.value = i.name + " (" + i.part + ", " + i.rarity + ") #" + i.id; dl.appendChild(o); });
@@ -2133,21 +2170,20 @@ function loadPoints(){
         }
         giveRow("give", "pence", "100");
         giveRow("givePounds", "🪙", "10");
-        /* any item */
+        /* any item: opens the catalogue */
         var irow = document.createElement("div"); irow.className = "arow gamesrow";
-        var it = document.createElement("input"); it.type = "text"; it.className = "gwhy"; it.setAttribute("list", "itemList");
-        it.placeholder = "Give an item - start typing its name"; it.setAttribute("aria-label", "Item to give " + label); it.style.flex = "1";
-        var gi = document.createElement("button"); gi.type = "button"; gi.className = "abtn"; gi.textContent = "Give item";
+        var gi = document.createElement("button"); gi.type = "button"; gi.className = "catpick";
+        var gis = document.createElement("span"); gis.className = "sw small"; gis.textContent = "🎁";
+        var git = document.createElement("span"); git.className = "t"; git.textContent = "Give an item - browse the catalogue";
+        gi.appendChild(gis); gi.appendChild(git); gi.setAttribute("aria-label", "Give an item to " + label);
         gi.addEventListener("click", function(){
-          var m = /#([^\s#]+)$/.exec(it.value.trim());
-          var id = m ? m[1] : (ITEMS || []).filter(function(x){ return x.name.toLowerCase() === it.value.trim().toLowerCase(); }).map(function(x){ return x.id; })[0];
-          if (!id) { say("pointsMsg", "Pick an item from the list.", "err"); return; }
-          gi.disabled = true;
-          invokeOn("givepoints", { action:"giveItem", id:u.id, item:id }).then(function(r){
-            gi.disabled = false; it.value = ""; say("pointsMsg", "Gave " + label + ": " + r.item + ".", "ok");
-          }).catch(function(e){ gi.disabled = false; say("pointsMsg", e.message, "err"); });
+          openCatalog("Give an item to " + label, "Give it", function(it){
+            return invokeOn("givepoints", { action:"giveItem", id:u.id, item:it.id }).then(function(r){
+              say("pointsMsg", "Gave " + label + ": " + r.item + ".", "ok");
+            }).catch(function(e){ say("pointsMsg", e.message, "err"); return false; });
+          });
         });
-        irow.appendChild(it); irow.appendChild(gi); card.appendChild(irow);
+        irow.appendChild(gi); card.appendChild(irow);
         /* own photo */
         if (!u.owner) {
           var prow = document.createElement("div"); prow.className = "acct-row";
@@ -2168,6 +2204,96 @@ function loadPoints(){
   }).catch(function(){ sec.hidden = true; });
 }
 document.getElementById("pointsLoad").addEventListener("click", loadPoints);
+
+/* ---------- the item catalogue ----------
+   A proper picker instead of "start typing": search, filter by kind and
+   rarity, scroll the lot, tap one. Works the same on an iPad. */
+var CAT_PARTS = [["all","All"],["tag","🏷️ Tags"],["frame","🖼️ Frames"],["bg","🎨 Backgrounds"],["pattern","✨ Patterns"],["name","✍️ Name colours"],
+  ["theme","🖌️ Themes"],["card","💳 Cards"],["face","🙂 Faces"],["hat","🎩 Hats"],["sticker","⭐ Stickers"],["style","🧑 Character styles"],["char","👕 Character parts"]];
+var CAT_RAR = ["any","common","rare","epic","legendary","mythic","exotic","relic","event","tester"];
+function itemSwatch(it, small){
+  var d = document.createElement("div"); d.className = "sw" + (small ? " small" : "");
+  var v = String(it.v || "");
+  if (it.part === "theme") v = v.split("|")[0] ? "linear-gradient(135deg," + v.split("|")[0] + "," + (v.split("|")[1] || v.split("|")[0]) + ")" : "";
+  if (it.part === "frame" && v.indexOf("spin:") === 0) v = v.slice(5);
+  if (/gradient\(|^#[0-9a-f]{3,8}$/i.test(v)) d.style.background = v;
+  else if (it.part === "tag" || it.part === "face" || it.part === "hat" || it.part === "sticker") d.textContent = (v.match(/^\S+/) || ["🏷️"])[0];
+  else d.textContent = { style:"🧑", char:"👕", name:"✍️", frame:"🖼️", pattern:"✨", card:"💳", bg:"🎨" }[it.part] || "🎁";
+  return d;
+}
+function openCatalog(title, actionText, onGive){
+  itemsReady().then(function(items){
+    var st = { q:"", part:"all", rar:"any", pick:null };
+    var wrap = document.createElement("div"); wrap.className = "catwrap"; wrap.setAttribute("role", "dialog"); wrap.setAttribute("aria-label", title);
+    var box = document.createElement("div"); box.className = "catbox"; wrap.appendChild(box);
+    var head = document.createElement("div"); head.className = "cathead";
+    var top = document.createElement("div"); top.className = "cattop";
+    var tb = document.createElement("b"); tb.textContent = title;
+    var cnt = document.createElement("span"); cnt.className = "catcount";
+    var x = document.createElement("button"); x.type = "button"; x.className = "catx"; x.textContent = "✕"; x.setAttribute("aria-label", "Close");
+    top.appendChild(tb); top.appendChild(cnt); top.appendChild(x); head.appendChild(top);
+    var q = document.createElement("input"); q.type = "search"; q.className = "catsearch"; q.placeholder = "Search " + items.length + " items - name, kind or rarity"; q.setAttribute("aria-label", "Search items");
+    head.appendChild(q);
+    function chips(list, key, label){
+      var row = document.createElement("div"); row.className = "catchips"; row.setAttribute("aria-label", label);
+      list.forEach(function(p){
+        var val = Array.isArray(p) ? p[0] : p, txt = Array.isArray(p) ? p[1] : (p === "any" ? "Any rarity" : p[0].toUpperCase() + p.slice(1));
+        var b = document.createElement("button"); b.type = "button"; b.textContent = txt; b.setAttribute("aria-pressed", st[key] === val ? "true" : "false");
+        b.addEventListener("click", function(){ st[key] = val; [].forEach.call(row.children, function(c){ c.setAttribute("aria-pressed", c === b ? "true" : "false"); }); paint(); });
+        row.appendChild(b);
+      });
+      return row;
+    }
+    head.appendChild(chips(CAT_PARTS, "part", "Kind"));
+    head.appendChild(chips(CAT_RAR, "rar", "Rarity"));
+    box.appendChild(head);
+    var grid = document.createElement("div"); grid.className = "catgrid"; box.appendChild(grid);
+    var foot = document.createElement("div"); foot.className = "catfoot";
+    var what = document.createElement("div"); what.className = "what"; what.textContent = "Tap an item to choose it.";
+    var go = document.createElement("button"); go.type = "button"; go.className = "abtn"; go.textContent = actionText; go.disabled = true;
+    foot.appendChild(what); foot.appendChild(go); box.appendChild(foot);
+    var RANK = { relic:0, exotic:1, tester:2, mythic:3, event:4, legendary:5, epic:6, rare:7, common:8 };
+    function paint(){
+      grid.textContent = "";
+      var words = st.q.toLowerCase().split(/\s+/).filter(Boolean);
+      var list = items.filter(function(i){
+        if (st.part !== "all" && i.part !== st.part) return false;
+        if (st.rar !== "any" && i.rarity !== st.rar) return false;
+        var hay = (i.name + " " + i.part + " " + (i.rarity || "") + " " + i.id + " " + (i.part === "tag" ? i.v : "")).toLowerCase();
+        return words.every(function(w){ return hay.indexOf(w) >= 0; });
+      }).sort(function(a, b){ return ((RANK[a.rarity] ?? 9) - (RANK[b.rarity] ?? 9)) || a.name.localeCompare(b.name); });
+      cnt.textContent = list.length + " of " + items.length;
+      if (!list.length) { var e = document.createElement("p"); e.className = "catempty"; e.textContent = "Nothing matches - try fewer words."; grid.appendChild(e); }
+      list.slice(0, 400).forEach(function(it){
+        var c = document.createElement("button"); c.type = "button"; c.className = "catitem"; c.setAttribute("aria-pressed", st.pick === it ? "true" : "false");
+        c.appendChild(itemSwatch(it));
+        var nm = document.createElement("span"); nm.className = "nm"; nm.textContent = it.part === "tag" ? it.v || it.name : it.name; c.appendChild(nm);
+        var r = document.createElement("span"); r.className = "rar " + (it.rarity || ""); r.textContent = it.rarity || "item"; c.appendChild(r);
+        var m = document.createElement("span"); m.className = "meta";
+        m.textContent = (CAT_PARTS.filter(function(p){ return p[0] === it.part; })[0] || [0, it.part])[1].replace(/^\S+\s/, "") + (it.stock ? " · only " + it.stock : "");
+        c.appendChild(m);
+        c.addEventListener("click", function(){
+          st.pick = it; [].forEach.call(grid.children, function(k){ k.setAttribute("aria-pressed", k === c ? "true" : "false"); });
+          what.textContent = ""; var b = document.createElement("b"); b.textContent = (it.part === "tag" ? it.v || it.name : it.name);
+          var sm = document.createElement("small"); sm.textContent = (it.rarity || "") + " " + it.part + (it.stock ? " · only " + it.stock + " in the world" : "");
+          what.appendChild(b); what.appendChild(sm); go.disabled = false;
+        });
+        grid.appendChild(c);
+      });
+      if (list.length > 400) { var more = document.createElement("p"); more.className = "catempty"; more.textContent = "Showing 400 - search or pick a kind to see the rest."; grid.appendChild(more); }
+    }
+    var tq = 0; q.addEventListener("input", function(){ clearTimeout(tq); tq = setTimeout(function(){ st.q = q.value; paint(); }, 120); });
+    function close(){ wrap.remove(); document.removeEventListener("keydown", esc); document.body.style.overflow = ""; }
+    function esc(e){ if (e.key === "Escape") close(); }
+    x.addEventListener("click", close);
+    wrap.addEventListener("click", function(e){ if (e.target === wrap) close(); });
+    document.addEventListener("keydown", esc);
+    go.addEventListener("click", function(){ if (!st.pick) return; go.disabled = true; Promise.resolve(onGive(st.pick)).then(function(keep){ if (keep === false) go.disabled = false; else close(); }, function(){ go.disabled = false; }); });
+    document.body.appendChild(wrap); document.body.style.overflow = "hidden";
+    paint(); setTimeout(function(){ q.focus(); }, 50);
+  }).catch(function(){ say("pointsMsg", "Couldn't load the shop catalogue.", "err"); });
+}
+
 /* trades: the log, and Undo (press twice) */
 function loadTrades(){
   var host = document.getElementById("tradeRows"); if (!host) return;
@@ -2210,22 +2336,32 @@ function loadTrades(){
     var m = /#([^\s#]+)$/.exec(v.trim());
     return m ? m[1] : (ITEMS || []).filter(function(x){ return x.name.toLowerCase() === v.trim().toLowerCase(); }).map(function(x){ return x.id; })[0];
   }
+  var pick = document.getElementById("allPick");
+  if (pick) pick.addEventListener("click", function(){
+    openCatalog("Item for everyone", "Choose it", function(it){
+      document.getElementById("allItem").value = it.id;
+      pick.textContent = ""; pick.appendChild(itemSwatch(it, true));
+      var t = document.createElement("span"); t.className = "t"; t.textContent = (it.part === "tag" ? it.v || it.name : it.name) + " · " + (it.rarity || "") + (it.stock ? " (limited - one at a time)" : "");
+      pick.appendChild(t);
+    });
+  });
   btn.addEventListener("click", function(){
-    var id = itemId(document.getElementById("allItem").value);
+    var id = document.getElementById("allItem").value || itemId("");
     if (!id) { say("pointsMsg", "Pick an item from the list.", "err"); return; }
     var skip = document.getElementById("allSkip").value.split(/[\s,;]+/).filter(Boolean);
+    var only = document.getElementById("allOnly").value.split(/[\s,;]+/).filter(Boolean);
     if (!sure) {
-      sure = true; btn.textContent = "Sure? Press again" + (skip.length ? " (leaving out " + skip.length + ")" : "");
-      clearTimeout(t); t = setTimeout(function(){ sure = false; btn.textContent = "Give to everyone"; }, 6000);
+      sure = true; btn.textContent = "Sure? Press again - " + (only.length ? only.length + " " + (only.length === 1 ? "person" : "people") : "everyone") + (skip.length ? ", leaving out " + skip.length : "");
+      clearTimeout(t); t = setTimeout(function(){ sure = false; btn.textContent = "Give it"; }, 6000);
       return;
     }
     sure = false; clearTimeout(t); btn.disabled = true; btn.textContent = "Giving…";
-    invokeOn("givepoints", { action:"giveItemAll", item:id, except:skip }).then(function(r){
+    invokeOn("givepoints", { action:"giveItemAll", item:id, except:skip, only:only }).then(function(r){
       say("pointsMsg", "Gave " + r.item + " to " + r.gave + " account(s)" + (r.had ? ", " + r.had + " already had it" : "") +
         (r.left ? ", left out " + r.left : "") + (r.failed ? ", " + r.failed + " didn't work" : "") + ".", r.failed ? "err" : "ok");
-      document.getElementById("allItem").value = "";
+      document.getElementById("allItem").value = ""; document.getElementById("allOnly").value = ""; if (pick) pick.innerHTML = '<span class="sw small">🎁</span><span class="t">Choose the item - browse the catalogue</span>';
     }).catch(function(e){ say("pointsMsg", e.message, "err"); })
-      .then(function(){ btn.disabled = false; btn.textContent = "Give to everyone"; });
+      .then(function(){ btn.disabled = false; btn.textContent = "Give it"; });
   });
 })();
 
