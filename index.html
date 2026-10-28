@@ -2237,7 +2237,7 @@ function openCatalog(title, actionText, onGive){
     function chips(list, key, label){
       var row = document.createElement("div"); row.className = "catchips"; row.setAttribute("aria-label", label);
       list.forEach(function(p){
-        var val = Array.isArray(p) ? p[0] : p, txt = Array.isArray(p) ? p[1] : (p === "any" ? "Any rarity" : p[0].toUpperCase() + p.slice(1));
+        var val = Array.isArray(p) ? p[0] : p, txt = Array.isArray(p) ? p[1] : (({ any:"Any rarity", relic:"One of a kind", unique:"Founder", event:"Special day" })[p] || p[0].toUpperCase() + p.slice(1));
         var b = document.createElement("button"); b.type = "button"; b.textContent = txt; b.setAttribute("aria-pressed", st[key] === val ? "true" : "false");
         b.addEventListener("click", function(){ st[key] = val; [].forEach.call(row.children, function(c){ c.setAttribute("aria-pressed", c === b ? "true" : "false"); }); paint(); });
         row.appendChild(b);
@@ -2268,7 +2268,7 @@ function openCatalog(title, actionText, onGive){
         var c = document.createElement("button"); c.type = "button"; c.className = "catitem"; c.setAttribute("aria-pressed", st.pick === it ? "true" : "false");
         c.appendChild(itemSwatch(it));
         var nm = document.createElement("span"); nm.className = "nm"; nm.textContent = it.part === "tag" ? it.v || it.name : it.name; c.appendChild(nm);
-        var r = document.createElement("span"); r.className = "rar " + (it.rarity || ""); r.textContent = it.rarity || "item"; c.appendChild(r);
+        var r = document.createElement("span"); r.className = "rar " + (it.rarity || ""); r.textContent = ({ relic:"one of a kind", unique:"founder", staff:"helper", event:"special day" })[it.rarity] || it.rarity || "item"; c.appendChild(r);
         var m = document.createElement("span"); m.className = "meta";
         m.textContent = (CAT_PARTS.filter(function(p){ return p[0] === it.part; })[0] || [0, it.part])[1].replace(/^\S+\s/, "") + (it.stock ? " · only " + it.stock : "");
         c.appendChild(m);
