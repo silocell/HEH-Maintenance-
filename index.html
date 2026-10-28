@@ -486,7 +486,7 @@ body.demo #mainPanel .sec.off{ opacity:.42; pointer-events:none; user-select:non
         <div class="arow" style="margin-top:8px">
           <button type="button" class="abtn quiet" id="pointsLoad">Refresh</button>
         </div>
-        <p class="amsg" id="pointsMsg">Level Up points for testers to try the profile shop. Up to 2,500 in total and 500 per person, counted over the last 3 days. Only the main admin account can give them.</p>
+        <p class="amsg" id="pointsMsg">Level Up points for testers to try the profile shop. Up to 2,500 in total and 500 per person, counted over the last 3 days. Launchpad Pounds too: up to 100 a day in total (resets at midnight UK time). Only the main admin account can give them.</p>
       </div>
 
       <div class="sec" id="switchSec" hidden>
@@ -2055,7 +2055,8 @@ function loadPoints(){
     host.textContent = "";
     var when = d.frees ? new Date(d.frees).toLocaleString([], { weekday:"short", hour:"2-digit", minute:"2-digit" }) : "";
     document.getElementById("pointsSum").textContent = "\u2b50 " + d.left.toLocaleString() + " of " + d.cap.toLocaleString() +
-      " left to give" + (d.given && when ? " \u00b7 the oldest gift frees up " + when : "") + ".";
+      " left to give" + (d.given && when ? " \u00b7 the oldest gift frees up " + when : "") + "." +
+      (d.lpCap ? "  \ud83e\ude99 " + d.lpLeft + " of " + d.lpCap + " Launchpad Pounds left to give today." : "");
     (d.people || []).forEach(function(u){
       var label = userNames[u.id] || u.email;
       var room = Math.min(d.each - u.given, d.left);
@@ -2063,7 +2064,7 @@ function loadPoints(){
       var top = document.createElement("div"); top.className = "acct-top";
       var nm = document.createElement("span"); nm.className = "acct-email"; nm.textContent = label;
       var st = document.createElement("span"); st.className = "gstate " + (u.given ? "learn" : "off");
-      st.textContent = "\u2b50 " + u.pts.toLocaleString() + " pts";
+      st.textContent = "\u2b50 " + u.pts.toLocaleString() + " pts" + (u.pounds != null ? " \u00b7 \ud83e\ude99 " + u.pounds : "");
       top.appendChild(nm); top.appendChild(st);
       var meta = document.createElement("p"); meta.className = "gmeta";
       meta.textContent = (label !== u.email ? u.email + " \u00b7 " : "") + "Given " + u.given + " of " + d.each + " in these 3 days";
@@ -2084,6 +2085,25 @@ function loadPoints(){
       });
       row.appendChild(num); row.appendChild(give);
       card.appendChild(top); card.appendChild(meta); card.appendChild(row);
+      /* Launchpad Pounds: 100 a day in total, the server checks. */
+      if(d.lpCap){
+        var lrow = document.createElement("div"); lrow.className = "arow gamesrow";
+        var lnum = document.createElement("input"); lnum.type = "number"; lnum.min = "1"; lnum.step = "1";
+        lnum.max = String(Math.max(1, d.lpLeft)); lnum.value = String(Math.max(0, Math.min(10, d.lpLeft)));
+        lnum.className = "gwhy pnum"; lnum.setAttribute("aria-label", "Launchpad Pounds to give " + label);
+        var lgive = document.createElement("button"); lgive.type = "button"; lgive.className = "abtn"; lgive.textContent = "Give \ud83e\ude99";
+        if(d.lpLeft <= 0){ lnum.disabled = true; lgive.disabled = true; lgive.textContent = "\ud83e\ude99 None left today"; }
+        lgive.addEventListener("click", function(){
+          var n = Math.floor(Number(lnum.value));
+          if(!(n >= 1)) { say("pointsMsg", "How many Pounds?", "err"); return; }
+          lgive.disabled = true;
+          invokeOn("givepoints", { action:"givePounds", id:u.id, amount:n }).then(function(r){
+            say("pointsMsg", "Gave " + label + " " + n + " Launchpad Pound" + (n === 1 ? "" : "s") + " - they have \ud83e\ude99 " + r.pounds + " now.", "ok");
+            return loadPoints();
+          }).catch(function(e){ lgive.disabled = false; say("pointsMsg", e.message, "err"); });
+        });
+        lrow.appendChild(lnum); lrow.appendChild(lgive); card.appendChild(lrow);
+      }
       host.appendChild(card);
     });
   }).catch(function(){ sec.hidden = true; });
@@ -3305,7 +3325,8 @@ function newChecks(out){
     }),
     ownerOnly("Give points", function(){
       return invokeOn("givepoints", { action:"list" }).then(function(d){
-        return { detail:d.left + " of " + d.cap + " points left to give in these 3 days (" + d.each + " per person)." };
+        return { detail:d.left + " of " + d.cap + " points left to give in these 3 days (" + d.each + " per person)" +
+          (d.lpCap ? "; " + d.lpLeft + " of " + d.lpCap + " Pounds left today." : ".") };
       }, function(e){
         if(/main admin/i.test(e.message)) return { detail:"Main admin account only - skipped." };
         throw e;
