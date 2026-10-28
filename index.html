@@ -480,13 +480,16 @@ body.demo #mainPanel .sec.off{ opacity:.42; pointer-events:none; user-select:non
       </div>
 
       <div class="sec" id="pointsSec" hidden>
-        <p class="sec-h">Give points</p>
+        <p class="sec-h">Rewards</p>
         <p class="gsum" id="pointsSum"></p>
+        <div id="photoQueue"></div>
+        <input type="search" class="gwhy" id="pointsFind" placeholder="Find someone…" aria-label="Find someone" style="margin-bottom:8px;width:100%">
+        <datalist id="itemList"></datalist>
         <div id="pointsRows"></div>
         <div class="arow" style="margin-top:8px">
           <button type="button" class="abtn quiet" id="pointsLoad">Refresh</button>
         </div>
-        <p class="amsg" id="pointsMsg">Level Up points for testers to try the profile shop. Up to 2,500 in total and 500 per person, counted over the last 3 days. Launchpad Pounds too: up to 100 a day in total (resets at midnight UK time). Only the main admin account can give them.</p>
+        <p class="amsg" id="pointsMsg">Give pence, Launchpad Pounds or any shop item to anyone - no limits (a limited item uses up one of its copies). Switch on "Own photo" for people you want to reward; each new photo waits here for your OK before anyone else sees it. Only the main admin account sees this.</p>
       </div>
 
       <div class="sec" id="switchSec" hidden>
@@ -2047,65 +2050,108 @@ document.getElementById("gamesLoad").addEventListener("click", loadGames);
    refuses everyone else, and then the section simply stays hidden. The
    limits are the server's too - 2,500 in total and 500 per person over
    the last 3 days - this only shows them. */
+var ITEMS = null;   /* the shop catalogue, for "give an item" */
+function itemsReady(){
+  if (ITEMS) return Promise.resolve(ITEMS);
+  return fetch("https://civilinitiatives.org/shop-catalog.json?v=4").then(function(r){ return r.json(); }).then(function(c){
+    ITEMS = c.items.filter(function(i){ return !i.only; });
+    var dl = document.getElementById("itemList"); dl.textContent = "";
+    ITEMS.forEach(function(i){ var o = document.createElement("option"); o.value = i.name + " (" + i.part + ", " + i.rarity + ") #" + i.id; dl.appendChild(o); });
+    return ITEMS;
+  });
+}
 function loadPoints(){
   var sec = document.getElementById("pointsSec"), host = document.getElementById("pointsRows");
   if(!sec || !canSync()) return Promise.resolve();
+  itemsReady().catch(function(){});
   return invokeOn("givepoints", { action:"list" }).then(function(d){
     sec.hidden = false;
     host.textContent = "";
-    var when = d.frees ? new Date(d.frees).toLocaleString([], { weekday:"short", hour:"2-digit", minute:"2-digit" }) : "";
-    document.getElementById("pointsSum").textContent = "\u2b50 " + d.left.toLocaleString() + " of " + d.cap.toLocaleString() +
-      " left to give" + (d.given && when ? " \u00b7 the oldest gift frees up " + when : "") + "." +
-      (d.lpCap ? "  \ud83e\ude99 " + d.lpLeft + " of " + d.lpCap + " Launchpad Pounds left to give today." : "");
-    (d.people || []).forEach(function(u){
-      var label = userNames[u.id] || u.email;
-      var room = Math.min(d.each - u.given, d.left);
+    var people = d.people || [];
+    document.getElementById("pointsSum").textContent = people.length + " accounts. " + (d.photos && d.photos.length ? d.photos.length + " photo(s) waiting for you." : "");
+    /* photos waiting */
+    var q = document.getElementById("photoQueue"); q.textContent = "";
+    (d.photos || []).forEach(function(ph){
       var card = document.createElement("div"); card.className = "acct";
       var top = document.createElement("div"); top.className = "acct-top";
-      var nm = document.createElement("span"); nm.className = "acct-email"; nm.textContent = label;
-      var st = document.createElement("span"); st.className = "gstate " + (u.given ? "learn" : "off");
-      st.textContent = "\u2b50 " + u.pts.toLocaleString() + " pts" + (u.pounds != null ? " \u00b7 \ud83e\ude99 " + u.pounds : "");
-      top.appendChild(nm); top.appendChild(st);
-      var meta = document.createElement("p"); meta.className = "gmeta";
-      meta.textContent = (label !== u.email ? u.email + " \u00b7 " : "") + "Given " + u.given + " of " + d.each + " in these 3 days";
-      var row = document.createElement("div"); row.className = "arow gamesrow";
-      var num = document.createElement("input"); num.type = "number"; num.min = "1"; num.step = "1";
-      num.max = String(Math.max(1, room)); num.value = String(Math.max(0, Math.min(100, room)));
-      num.className = "gwhy pnum"; num.setAttribute("aria-label", "Points to give " + label);
-      var give = document.createElement("button"); give.type = "button"; give.className = "abtn"; give.textContent = "Give";
-      if(room <= 0){ num.disabled = true; give.disabled = true; give.textContent = d.left <= 0 ? "None left" : "At 500"; }
-      give.addEventListener("click", function(){
-        var n = Math.floor(Number(num.value));
-        if(!(n >= 1)) { say("pointsMsg", "How many points?", "err"); return; }
-        give.disabled = true;
-        invokeOn("givepoints", { action:"give", id:u.id, amount:n }).then(function(r){
-          say("pointsMsg", "Gave " + label + " " + n + " points - they have " + r.pts.toLocaleString() + " now.", "ok");
-          return loadPoints();
-        }).catch(function(e){ give.disabled = false; say("pointsMsg", e.message, "err"); });
+      var im = document.createElement("img"); im.src = ph.img; im.alt = "Photo from " + ph.email; im.style.cssText = "width:96px;height:96px;border-radius:50%;object-fit:cover";
+      var nm = document.createElement("span"); nm.className = "acct-email"; nm.textContent = "📷 " + (userNames[ph.id] || ph.email) + " wants to use this photo";
+      top.appendChild(im); top.appendChild(nm); card.appendChild(top);
+      var row = document.createElement("div"); row.className = "arow";
+      [["Approve", true], ["Turn down", false]].forEach(function(x){
+        var b = document.createElement("button"); b.type = "button"; b.className = "abtn" + (x[1] ? "" : " quiet"); b.textContent = x[0];
+        b.addEventListener("click", function(){ b.disabled = true;
+          invokeOn("givepoints", { action:"photoReview", id:ph.id, ok:x[1] }).then(function(){ say("pointsMsg", x[1] ? "Approved - everyone can see it now." : "Turned down.", "ok"); return loadPoints(); })
+            .catch(function(e){ b.disabled = false; say("pointsMsg", e.message, "err"); }); });
+        row.appendChild(b);
       });
-      row.appendChild(num); row.appendChild(give);
-      card.appendChild(top); card.appendChild(meta); card.appendChild(row);
-      /* Launchpad Pounds: 100 a day in total, the server checks. */
-      if(d.lpCap){
-        var lrow = document.createElement("div"); lrow.className = "arow gamesrow";
-        var lnum = document.createElement("input"); lnum.type = "number"; lnum.min = "1"; lnum.step = "1";
-        lnum.max = String(Math.max(1, d.lpLeft)); lnum.value = String(Math.max(0, Math.min(10, d.lpLeft)));
-        lnum.className = "gwhy pnum"; lnum.setAttribute("aria-label", "Launchpad Pounds to give " + label);
-        var lgive = document.createElement("button"); lgive.type = "button"; lgive.className = "abtn"; lgive.textContent = "Give \ud83e\ude99";
-        if(d.lpLeft <= 0){ lnum.disabled = true; lgive.disabled = true; lgive.textContent = "\ud83e\ude99 None left today"; }
-        lgive.addEventListener("click", function(){
-          var n = Math.floor(Number(lnum.value));
-          if(!(n >= 1)) { say("pointsMsg", "How many Pounds?", "err"); return; }
-          lgive.disabled = true;
-          invokeOn("givepoints", { action:"givePounds", id:u.id, amount:n }).then(function(r){
-            say("pointsMsg", "Gave " + label + " " + n + " Launchpad Pound" + (n === 1 ? "" : "s") + " - they have \ud83e\ude99 " + r.pounds + " now.", "ok");
-            return loadPoints();
-          }).catch(function(e){ lgive.disabled = false; say("pointsMsg", e.message, "err"); });
-        });
-        lrow.appendChild(lnum); lrow.appendChild(lgive); card.appendChild(lrow);
-      }
-      host.appendChild(card);
+      card.appendChild(row); q.appendChild(card);
     });
+    var find = document.getElementById("pointsFind");
+    function paint(){
+      host.textContent = "";
+      var f = (find.value || "").toLowerCase();
+      people.filter(function(u){ return !f || (u.email + " " + (userNames[u.id] || "")).toLowerCase().indexOf(f) >= 0; }).forEach(function(u){
+        var label = userNames[u.id] || u.email;
+        var card = document.createElement("div"); card.className = "acct";
+        var top = document.createElement("div"); top.className = "acct-top";
+        var nm = document.createElement("span"); nm.className = "acct-email"; nm.textContent = label;
+        var st = document.createElement("span"); st.className = "gstate learn";
+        st.textContent = u.pts.toLocaleString() + "p · 🪙 " + u.pounds;
+        top.appendChild(nm); top.appendChild(st);
+        var meta = document.createElement("p"); meta.className = "gmeta";
+        meta.textContent = (label !== u.email ? u.email : "") + (u.photoStatus ? (label !== u.email ? " · " : "") + "photo: " + u.photoStatus : "");
+        card.appendChild(top); if (meta.textContent) card.appendChild(meta);
+        function giveRow(kind, unit, def){
+          var row = document.createElement("div"); row.className = "arow gamesrow";
+          var num = document.createElement("input"); num.type = "number"; num.min = "1"; num.step = "1"; num.value = def;
+          num.className = "gwhy pnum"; num.setAttribute("aria-label", unit + " to give " + label);
+          var give = document.createElement("button"); give.type = "button"; give.className = "abtn"; give.textContent = "Give " + unit;
+          give.addEventListener("click", function(){
+            var n = Math.floor(Number(num.value));
+            if(!(n >= 1)) { say("pointsMsg", "How many?", "err"); return; }
+            give.disabled = true;
+            invokeOn("givepoints", { action: kind, id:u.id, amount:n }).then(function(r){
+              say("pointsMsg", "Gave " + label + " " + n + (kind === "give" ? "p" : " Launchpad Pounds") + ".", "ok");
+              return loadPoints();
+            }).catch(function(e){ give.disabled = false; say("pointsMsg", e.message, "err"); });
+          });
+          row.appendChild(num); row.appendChild(give); card.appendChild(row);
+        }
+        giveRow("give", "pence", "100");
+        giveRow("givePounds", "🪙", "10");
+        /* any item */
+        var irow = document.createElement("div"); irow.className = "arow gamesrow";
+        var it = document.createElement("input"); it.type = "text"; it.className = "gwhy"; it.setAttribute("list", "itemList");
+        it.placeholder = "Give an item - start typing its name"; it.setAttribute("aria-label", "Item to give " + label); it.style.flex = "1";
+        var gi = document.createElement("button"); gi.type = "button"; gi.className = "abtn"; gi.textContent = "Give item";
+        gi.addEventListener("click", function(){
+          var m = /#([^\s#]+)$/.exec(it.value.trim());
+          var id = m ? m[1] : (ITEMS || []).filter(function(x){ return x.name.toLowerCase() === it.value.trim().toLowerCase(); }).map(function(x){ return x.id; })[0];
+          if (!id) { say("pointsMsg", "Pick an item from the list.", "err"); return; }
+          gi.disabled = true;
+          invokeOn("givepoints", { action:"giveItem", id:u.id, item:id }).then(function(r){
+            gi.disabled = false; it.value = ""; say("pointsMsg", "Gave " + label + ": " + r.item + ".", "ok");
+          }).catch(function(e){ gi.disabled = false; say("pointsMsg", e.message, "err"); });
+        });
+        irow.appendChild(it); irow.appendChild(gi); card.appendChild(irow);
+        /* own photo */
+        if (!u.owner) {
+          var prow = document.createElement("div"); prow.className = "acct-row";
+          var lab = document.createElement("label"); var cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = !!u.photo;
+          lab.appendChild(cb); lab.appendChild(document.createTextNode(" 📷 Can upload their own photo"));
+          cb.addEventListener("change", function(){
+            invokeOn("givepoints", { action:"photoAllow", id:u.id, on:cb.checked }).then(function(){ u.photo = cb.checked;
+              say("pointsMsg", cb.checked ? label + " can now upload a photo (you'll approve it here)." : label + "'s photo is switched off.", "ok"); })
+              .catch(function(e){ cb.checked = !cb.checked; say("pointsMsg", e.message, "err"); });
+          });
+          prow.appendChild(lab); card.appendChild(prow);
+        }
+        host.appendChild(card);
+      });
+    }
+    find.oninput = paint;
+    paint();
   }).catch(function(){ sec.hidden = true; });
 }
 document.getElementById("pointsLoad").addEventListener("click", loadPoints);
@@ -3323,10 +3369,9 @@ function newChecks(out){
       var m = document.cookie.match(/(?:^|; )hl_theme=(dark|light|system)/);
       return { detail: m ? "Shared with every site: " + m[1] + "." : "Nobody has picked one on this browser yet - every site follows the device." };
     }),
-    ownerOnly("Give points", function(){
+    ownerOnly("Rewards", function(){
       return invokeOn("givepoints", { action:"list" }).then(function(d){
-        return { detail:d.left + " of " + d.cap + " points left to give in these 3 days (" + d.each + " per person)" +
-          (d.lpCap ? "; " + d.lpLeft + " of " + d.lpCap + " Pounds left today." : ".") };
+        return { detail:(d.people || []).length + " accounts; " + (d.photos || []).length + " photo(s) waiting for approval. Giving has no limits." };
       }, function(e){
         if(/main admin/i.test(e.message)) return { detail:"Main admin account only - skipped." };
         throw e;
