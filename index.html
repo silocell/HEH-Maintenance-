@@ -493,6 +493,12 @@ body.demo #mainPanel .sec.off{ opacity:.42; pointer-events:none; user-select:non
         <input type="search" class="gwhy" id="pointsFind" placeholder="Find someone…" aria-label="Find someone" style="margin-bottom:8px;width:100%">
         <datalist id="itemList"></datalist>
         <div id="pointsRows"></div>
+        <div class="acct" id="tradeBox">
+          <div class="acct-top"><span class="acct-email">🤝 Recent trades</span></div>
+          <p class="gmeta">Every trade between players. If one went wrong - someone was tricked, or a rare item went somewhere it shouldn't - Undo puts everything back (as long as both still have what they got).</p>
+          <div id="tradeRows"><p class="gmeta">Press Refresh to load them.</p></div>
+          <div class="arow"><button type="button" class="abtn quiet" id="tradeLoad">Load trades</button></div>
+        </div>
         <div class="arow" style="margin-top:8px">
           <button type="button" class="abtn quiet" id="pointsLoad">Refresh</button>
         </div>
@@ -2162,6 +2168,39 @@ function loadPoints(){
   }).catch(function(){ sec.hidden = true; });
 }
 document.getElementById("pointsLoad").addEventListener("click", loadPoints);
+/* trades: the log, and Undo (press twice) */
+function loadTrades(){
+  var host = document.getElementById("tradeRows"); if (!host) return;
+  host.textContent = "Loading…";
+  invokeOn("givepoints", { action:"trades" }).then(function(d){
+    host.textContent = "";
+    var WORD = { open:"⏳ waiting", done:"✅ done", declined:"✖ turned down", cancelled:"✖ cancelled", failed:"⚠️ couldn't happen", expired:"⌛ ran out", undone:"↩️ undone" };
+    if (!d.trades.length) { host.appendChild(document.createTextNode("No trades yet.")); return; }
+    d.trades.forEach(function(t){
+      var row = document.createElement("div"); row.className = "acct-row"; row.style.cssText = "display:block;padding:8px 0;border-top:1px solid var(--rule,#ddd)";
+      var p = document.createElement("p"); p.className = "gmeta"; p.style.margin = "0";
+      var lop = (t.gv || 0) > (t.wv || 0) * 2 + 40 || (t.wv || 0) > (t.gv || 0) * 2 + 40;
+      p.textContent = (WORD[t.status] || t.status) + " · " + new Date(t.created).toLocaleString("en-GB", { day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" }) +
+        " · " + t.from + " gave [" + t.give + "] ↔ " + t.to + " gave [" + t.want + "]" +
+        (t.gv != null ? " · about " + t.gv + "p vs " + t.wv + "p" + (lop ? " ⚠️ lopsided" : "") : "");
+      row.appendChild(p);
+      if (t.status === "done") {
+        var u = document.createElement("button"); u.type = "button"; u.className = "abtn quiet"; u.textContent = "Undo"; u.style.marginTop = "4px";
+        var armed = false, tm = 0;
+        u.addEventListener("click", function(){
+          if (!armed) { armed = true; u.textContent = "Sure? Press again to undo"; tm = setTimeout(function(){ armed = false; u.textContent = "Undo"; }, 5000); return; }
+          clearTimeout(tm); u.disabled = true;
+          invokeOn("givepoints", { action:"tradeUndo", id:t.id }).then(function(){ say("pointsMsg", "Trade undone - everything went back.", "ok"); loadTrades(); })
+            .catch(function(e){ u.disabled = false; armed = false; u.textContent = "Undo"; say("pointsMsg", e.message, "err"); });
+        });
+        row.appendChild(u);
+      }
+      host.appendChild(row);
+    });
+  }).catch(function(e){ host.textContent = e.message; });
+}
+(function(){ var b = document.getElementById("tradeLoad"); if (b) b.addEventListener("click", loadTrades); })();
+
 /* one item to every account, leaving out the emails typed in. Asks
    "Sure?" on the first press so a slip of the finger can't do it. */
 (function(){
