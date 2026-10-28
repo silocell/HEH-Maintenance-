@@ -410,7 +410,7 @@ body.demo #mainPanel .sec.off{ opacity:.42; pointer-events:none; user-select:non
 .rar{display:inline-block;padding:1px 7px;border-radius:999px;font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#fff;background:#64748b}
 .rar.rare{background:#2563eb}.rar.epic{background:#7c3aed}.rar.legendary{background:#d97706}.rar.mythic{background:#db2777}
 .rar.exotic{background:linear-gradient(90deg,#06b6d4,#a855f7)}.rar.relic{background:linear-gradient(90deg,#111827,#b45309)}
-.rar.event{background:#0f766e}.rar.tester{background:#16a34a}.rar.staff,.rar.unique{background:#111827}
+.rar.event{background:#0f766e}.rar.tester{background:#16a34a}.rar.staff,.rar.unique{background:#111827}.rar.honour{background:#b45309}
 .catfoot{padding:12px 16px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--rule);display:flex;align-items:center;gap:12px;background:var(--card)}
 .catfoot .what{flex:1;min-width:0;font-size:.92rem}
 .catfoot .what b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -2122,7 +2122,7 @@ document.getElementById("gamesLoad").addEventListener("click", loadGames);
 var ITEMS = null;   /* the shop catalogue, for "give an item" */
 function itemsReady(){
   if (ITEMS) return Promise.resolve(ITEMS);
-  return fetch("https://civilinitiatives.org/shop-catalog.json?v=10").then(function(r){ return r.json(); }).then(function(c){
+  return fetch("https://civilinitiatives.org/shop-catalog.json?v=11").then(function(r){ return r.json(); }).then(function(c){
     ITEMS = c.items.filter(function(i){ return !i.only; });
     var dl = document.getElementById("itemList"); dl.textContent = "";
     ITEMS.forEach(function(i){ var o = document.createElement("option"); o.value = i.name + " (" + i.part + ", " + i.rarity + ") #" + i.id; dl.appendChild(o); });
@@ -2197,6 +2197,7 @@ function loadPoints(){
         gi.appendChild(gis); gi.appendChild(git); gi.setAttribute("aria-label", "Give an item to " + label);
         gi.addEventListener("click", function(){
           openCatalog("Give an item to " + label, "Give it", function(it){
+            if (it.gift === "honour" && !window.confirm("🏅 " + it.name + " is an honour.\n\nGive it to " + label + "? " + (it.id === "gh-photo" ? "They'll be able to upload their own picture (you still check it)." : ""))) return false;
             return invokeOn("givepoints", { action:"giveItem", id:u.id, item:it.id }).then(function(r){
               say("pointsMsg", "Gave " + label + ": " + r.item + ".", "ok");
             }).catch(function(e){ say("pointsMsg", e.message, "err"); return false; });
@@ -2287,7 +2288,7 @@ function openCatalog(title, actionText, onGive){
         var c = document.createElement("button"); c.type = "button"; c.className = "catitem"; c.setAttribute("aria-pressed", st.pick === it ? "true" : "false");
         c.appendChild(itemSwatch(it));
         var nm = document.createElement("span"); nm.className = "nm"; nm.textContent = it.part === "tag" ? it.v || it.name : it.name; c.appendChild(nm);
-        var r = document.createElement("span"); r.className = "rar " + (it.rarity || ""); r.textContent = ({ relic:"one of a kind", unique:"founder", staff:"helper", event:"special day" })[it.rarity] || it.rarity || "item"; c.appendChild(r);
+        var r = document.createElement("span"); r.className = "rar " + (it.rarity || ""); r.textContent = ({ relic:"one of a kind", unique:"founder", staff:"helper", event:"special day", honour:"🏅 honour" })[it.rarity] || it.rarity || "item"; c.appendChild(r);
         var m = document.createElement("span"); m.className = "meta";
         m.textContent = (CAT_PARTS.filter(function(p){ return p[0] === it.part; })[0] || [0, it.part])[1].replace(/^\S+\s/, "") + (it.stock ? " · only " + it.stock : "");
         c.appendChild(m);
@@ -2478,6 +2479,7 @@ function loadTrades(){
       clearTimeout(t); t = setTimeout(function(){ sure = false; btn.textContent = "Give it"; }, 6000);
       return;
     }
+    if (id === "gh-photo" && !window.confirm("🏅 Own photo is an honour. Give it to " + (only.length ? only.join(", ") : "EVERYONE") + "?")) { sure = false; clearTimeout(t); btn.textContent = "Give it"; return; }
     sure = false; clearTimeout(t); btn.disabled = true; btn.textContent = "Giving…";
     invokeOn("givepoints", { action:"giveItemAll", item:id, except:skip, only:only }).then(function(r){
       say("pointsMsg", "Gave " + r.item + " to " + r.gave + " account(s)" + (r.had ? ", " + r.had + " already had it" : "") +
