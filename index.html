@@ -530,6 +530,18 @@ body.demo #mainPanel .sec.off{ opacity:.42; pointer-events:none; user-select:non
         <input type="search" class="gwhy" id="pointsFind" placeholder="Find someone…" aria-label="Find someone" style="margin-bottom:8px;width:100%">
         <datalist id="itemList"></datalist>
         <div id="pointsRows"></div>
+        <div class="acct" id="schedBox">
+          <div class="acct-top"><span class="acct-email">🗓️ Shop schedule</span></div>
+          <p class="gmeta">Queue items for a day (they join "Today's deals") or a week (they join the weekly shop). They're added on top of the automatic picks, and can be bought then - even limited ones.</p>
+          <div class="arow gamesrow" role="group" aria-label="Day or week">
+            <button type="button" class="abtn" id="schedDay" aria-pressed="true">☀️ A day</button>
+            <button type="button" class="abtn quiet" id="schedWeek" aria-pressed="false">📅 A week</button>
+            <input type="date" class="gwhy" id="schedDate" aria-label="Which day">
+          </div>
+          <div class="arow gamesrow"><button type="button" class="catpick" id="schedPick"><span class="sw small">🎁</span><span class="t">Choose items to queue - browse the catalogue</span></button></div>
+          <div id="schedRows"><p class="gmeta">Press Load to see what's queued.</p></div>
+          <div class="arow"><button type="button" class="abtn quiet" id="schedLoad">Load the schedule</button></div>
+        </div>
         <div class="acct" id="limBox">
           <div class="acct-top"><span class="acct-email">💎 Limited items</span></div>
           <p class="gmeta">How many copies of each exist, the most there can ever be (1 to 5), and who has them. "Take back" removes a copy from someone and puts it back in the shop - it comes round again in the weekly shop.</p>
@@ -2359,6 +2371,51 @@ function paintLimited(){
 }
 (function(){ var b = document.getElementById("limLoad"); if (b) b.addEventListener("click", loadLimited);
   var f = document.getElementById("limFind"); if (f) f.addEventListener("input", function(){ if (LIM) paintLimited(); }); })();
+
+/* the shop schedule */
+(function(){
+  var kind = "day", dayB = document.getElementById("schedDay"), weekB = document.getElementById("schedWeek"), dt = document.getElementById("schedDate");
+  if (!dayB) return;
+  function iso(d){ return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+  function monday(s){ var d = new Date(s + "T12:00:00"); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return iso(d); }
+  var t = new Date(); t.setDate(t.getDate() + 1); dt.value = iso(t); dt.min = iso(new Date());
+  function setKind(k){ kind = k; dayB.className = "abtn" + (k === "day" ? "" : " quiet"); weekB.className = "abtn" + (k === "week" ? "" : " quiet");
+    dayB.setAttribute("aria-pressed", k === "day"); weekB.setAttribute("aria-pressed", k === "week");
+    dt.setAttribute("aria-label", k === "day" ? "Which day" : "Any day in the week"); }
+  dayB.addEventListener("click", function(){ setKind("day"); });
+  weekB.addEventListener("click", function(){ setKind("week"); });
+  function label(r){ var d = new Date(r.slot + "T12:00:00");
+    return r.kind === "day" ? "☀️ " + d.toLocaleDateString("en-GB", { weekday:"short", day:"numeric", month:"short" })
+                            : "📅 Week of " + d.toLocaleDateString("en-GB", { day:"numeric", month:"short" }); }
+  function load(){
+    var host = document.getElementById("schedRows"); host.textContent = "Loading…";
+    invokeOn("givepoints", { action:"queueList" }).then(function(d){
+      host.textContent = "";
+      if (!d.queue.length) { var p = document.createElement("p"); p.className = "gmeta"; p.textContent = "Nothing queued."; host.appendChild(p); return; }
+      var last = "";
+      d.queue.forEach(function(r){
+        var key = r.kind + r.slot;
+        if (key !== last) { var hh = document.createElement("p"); hh.style.cssText = "margin:10px 0 4px;font-weight:700"; hh.textContent = label(r); host.appendChild(hh); last = key; }
+        var row = document.createElement("div"); row.style.cssText = "display:flex;align-items:center;gap:8px;margin:4px 0";
+        var it = (ITEMS || []).filter(function(i){ return i.id === r.item; })[0]; if (it) row.appendChild(itemSwatch(it, true));
+        var nm = document.createElement("span"); nm.textContent = r.name; nm.style.flex = "1"; row.appendChild(nm);
+        var x = document.createElement("button"); x.type = "button"; x.className = "abtn quiet"; x.textContent = "Remove";
+        x.addEventListener("click", function(){ x.disabled = true; invokeOn("givepoints", { action:"queueRemove", id:r.id }).then(load).catch(function(e){ x.disabled = false; say("pointsMsg", e.message, "err"); }); });
+        row.appendChild(x); host.appendChild(row);
+      });
+    }).catch(function(e){ host.textContent = e.message; });
+  }
+  document.getElementById("schedLoad").addEventListener("click", load);
+  document.getElementById("schedPick").addEventListener("click", function(){
+    if (!dt.value) { say("pointsMsg", "Pick the day first.", "err"); return; }
+    var slot = kind === "week" ? monday(dt.value) : dt.value;
+    openCatalog("Queue for " + label({ kind:kind, slot:slot }).replace(/^\S+\s/, ""), "Queue it", function(it){
+      return invokeOn("givepoints", { action:"queueAdd", kind:kind, slot:slot, item:it.id }).then(function(){
+        say("pointsMsg", it.name + " queued for " + label({ kind:kind, slot:slot }).replace(/^\S+\s/, "").toLowerCase() + ". Pick another, or close.", "ok"); load(); return false;
+      }).catch(function(e){ say("pointsMsg", e.message, "err"); return false; });
+    });
+  });
+})();
 
 /* trades: the log, and Undo (press twice) */
 function loadTrades(){
