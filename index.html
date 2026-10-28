@@ -2122,7 +2122,7 @@ document.getElementById("gamesLoad").addEventListener("click", loadGames);
 var ITEMS = null;   /* the shop catalogue, for "give an item" */
 function itemsReady(){
   if (ITEMS) return Promise.resolve(ITEMS);
-  return fetch("https://civilinitiatives.org/shop-catalog.json?v=11").then(function(r){ return r.json(); }).then(function(c){
+  return fetch("https://civilinitiatives.org/shop-catalog.json?v=12").then(function(r){ return r.json(); }).then(function(c){
     ITEMS = c.items.filter(function(i){ return !i.only; });
     var dl = document.getElementById("itemList"); dl.textContent = "";
     ITEMS.forEach(function(i){ var o = document.createElement("option"); o.value = i.name + " (" + i.part + ", " + i.rarity + ") #" + i.id; dl.appendChild(o); });
@@ -2230,12 +2230,14 @@ document.getElementById("pointsLoad").addEventListener("click", loadPoints);
    rarity, scroll the lot, tap one. Works the same on an iPad. */
 var CAT_PARTS = [["all","All"],["tag","🏷️ Tags"],["frame","🖼️ Frames"],["bg","🎨 Backgrounds"],["pattern","✨ Patterns"],["name","✍️ Name colours"],
   ["theme","🖌️ Themes"],["card","💳 Cards"],["face","🙂 Faces"],["hat","🎩 Hats"],["sticker","⭐ Stickers"],["style","🧑 Character styles"],["char","👕 Character parts"]];
-var CAT_RAR = ["any","common","rare","epic","legendary","mythic","exotic","relic","event","tester"];
+var CAT_RAR = ["any","common","rare","epic","legendary","mythic","exotic","relic","event","tester","honour"];
 function itemSwatch(it, small){
   var d = document.createElement("div"); d.className = "sw" + (small ? " small" : "");
   var v = String(it.v || "");
   if (it.part === "theme") v = v.split("|")[0] ? "linear-gradient(135deg," + v.split("|")[0] + "," + (v.split("|")[1] || v.split("|")[0]) + ")" : "";
   if (it.part === "frame" && v.indexOf("spin:") === 0) v = v.slice(5);
+  if (v.indexOf("3d:") === 0) { var p3 = v.split("|"); v = p3[0] === "3d:planet" ? p3[1] + " center/cover" : p3[1]; }
+  if (/url\(/.test(v)) { d.style.background = v; return d; }
   if (/gradient\(|^#[0-9a-f]{3,8}$/i.test(v)) d.style.background = v;
   else if (it.part === "tag" || it.part === "face" || it.part === "hat" || it.part === "sticker") d.textContent = (v.match(/^\S+/) || ["🏷️"])[0];
   else d.textContent = { style:"🧑", char:"👕", name:"✍️", frame:"🖼️", pattern:"✨", card:"💳", bg:"🎨" }[it.part] || "🎁";
