@@ -2110,7 +2110,7 @@ document.getElementById("gamesLoad").addEventListener("click", loadGames);
 var ITEMS = null;   /* the shop catalogue, for "give an item" */
 function itemsReady(){
   if (ITEMS) return Promise.resolve(ITEMS);
-  return fetch("https://civilinitiatives.org/shop-catalog.json?v=8").then(function(r){ return r.json(); }).then(function(c){
+  return fetch("https://civilinitiatives.org/shop-catalog.json?v=9").then(function(r){ return r.json(); }).then(function(c){
     ITEMS = c.items.filter(function(i){ return !i.only; });
     var dl = document.getElementById("itemList"); dl.textContent = "";
     ITEMS.forEach(function(i){ var o = document.createElement("option"); o.value = i.name + " (" + i.part + ", " + i.rarity + ") #" + i.id; dl.appendChild(o); });
@@ -2312,9 +2312,17 @@ function loadLimited(){
 function paintLimited(){
   var host = document.getElementById("limRows"); host.textContent = "";
   var f = (document.getElementById("limFind").value || "").toLowerCase();
+  /* There are over a thousand: without a search, only the ones someone
+     has (or with a changed limit) are shown. */
+  var shown = 0;
+  var note = document.createElement("p"); note.className = "gmeta";
+  note.textContent = f ? "" : "Showing the limited items people have. Search to find any of the " + LIM.length + " (name, kind or username).";
+  host.appendChild(note);
   LIM.slice().sort(function(a, b){ return (a.cap || a.base) - (b.cap || b.base) || a.name.localeCompare(b.name); }).forEach(function(it){
     var who = it.owners.map(function(o){ return (o.user || "") + " " + (o.email || ""); }).join(" ");
     if (f && (it.name + " " + it.part + " " + who).toLowerCase().indexOf(f) < 0) return;
+    if (!f && !it.owners.length && !it.sold && !it.cap) return;
+    if (++shown > 60) return;
     var max = it.cap || it.base;
     var row = document.createElement("div"); row.style.cssText = "padding:10px 0;border-top:1px solid var(--rule)";
     var top = document.createElement("div"); top.style.cssText = "display:flex;align-items:center;gap:10px;flex-wrap:wrap";
