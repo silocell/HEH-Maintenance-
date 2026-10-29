@@ -212,6 +212,7 @@ button,input,select,textarea{font:inherit;color:inherit}
   padding:10px 15px;font-size:.84rem;font-weight:600;cursor:pointer;flex:none;
 }
 .abtn[disabled]{opacity:.55;cursor:default}
+.abtn.ghost{background:transparent;color:var(--ink);border:1px solid var(--rule)}
 .askmode{display:inline-flex;border:1px solid var(--rule);border-radius:999px;padding:3px;margin-bottom:10px;background:var(--card)}
 .askmode button{font:inherit;font-size:.86rem;border:0;background:transparent;color:var(--ink-soft);padding:5px 14px;border-radius:999px;cursor:pointer}
 .askmode button[aria-pressed="true"]{background:var(--accent);color:var(--on-accent)}
@@ -2185,7 +2186,20 @@ function loadPoints(){
               return loadPoints();
             }).catch(function(e){ give.disabled = false; say("pointsMsg", e.message, "err"); });
           });
-          row.appendChild(num); row.appendChild(give); card.appendChild(row);
+          /* take some back (never below nothing) */
+          var take = document.createElement("button"); take.type = "button"; take.className = "abtn ghost"; take.textContent = "Take " + unit;
+          take.addEventListener("click", function(){
+            var n = Math.floor(Number(num.value));
+            if(!(n >= 1)) { say("pointsMsg", "How many?", "err"); return; }
+            var nm = kind === "give" ? n + "p" : n + " Launchpad Pounds";
+            if (!window.confirm("Take " + nm + " away from " + label + "?")) return;
+            take.disabled = true;
+            invokeOn("givepoints", { action: kind === "give" ? "take" : "takePounds", id:u.id, amount:n }).then(function(r){
+              say("pointsMsg", "Took " + (kind === "give" ? r.taken + "p" : r.taken + " Launchpad Pounds") + " from " + label + (r.taken < n ? " - that's all they had." : "."), "ok");
+              return loadPoints();
+            }).catch(function(e){ take.disabled = false; say("pointsMsg", e.message, "err"); });
+          });
+          row.appendChild(num); row.appendChild(give); row.appendChild(take); card.appendChild(row);
         }
         giveRow("give", "pence", "100");
         giveRow("givePounds", "🪙", "10");
@@ -2203,7 +2217,23 @@ function loadPoints(){
             }).catch(function(e){ say("pointsMsg", e.message, "err"); return false; });
           });
         });
-        irow.appendChild(gi); card.appendChild(irow);
+        irow.appendChild(gi);
+        /* take any item away - opens the catalogue showing only what they own */
+        var ti = document.createElement("button"); ti.type = "button"; ti.className = "catpick";
+        var tis = document.createElement("span"); tis.className = "sw small"; tis.textContent = "↩️";
+        var tit = document.createElement("span"); tit.className = "t"; tit.textContent = "Take an item away";
+        ti.appendChild(tis); ti.appendChild(tit); ti.setAttribute("aria-label", "Take an item away from " + label);
+        ti.addEventListener("click", function(){
+          var mine = invokeOn("givepoints", { action:"owned", id:u.id }).then(function(r){ return r.items || []; });
+          mine.catch(function(e){ say("pointsMsg", e.message, "err"); });
+          openCatalog("Take an item away from " + label, "Take it away", function(it){
+            if (!window.confirm("Take " + it.name + " away from " + label + "?\n\n" + (it.stock ? "It goes back into the shop's limited stock." : "They won't have it any more.") + (it.id === "gh-photo" ? " They'll also stop being able to use their own photo." : ""))) return false;
+            return invokeOn("givepoints", { action:"itemReturn", id:u.id, item:it.id }).then(function(r){
+              say("pointsMsg", "Took " + r.item + " away from " + label + ".", "ok");
+            }).catch(function(e){ say("pointsMsg", e.message, "err"); return false; });
+          }, mine);
+        });
+        irow.appendChild(ti); card.appendChild(irow);
         /* own photo */
         if (!u.owner) {
           var prow = document.createElement("div"); prow.className = "acct-row";
@@ -2243,8 +2273,11 @@ function itemSwatch(it, small){
   else d.textContent = { style:"🧑", char:"👕", name:"✍️", frame:"🖼️", pattern:"✨", card:"💳", bg:"🎨" }[it.part] || "🎁";
   return d;
 }
-function openCatalog(title, actionText, onGive){
-  itemsReady().then(function(items){
+function openCatalog(title, actionText, onGive, onlyIds){
+  Promise.all([itemsReady(), onlyIds]).then(function(got){
+    var items = got[0];
+    if (got[1]) { var keep = new Set(got[1]); items = items.filter(function(i){ return keep.has(i.id); });
+      if (!items.length) { say("pointsMsg", "They don't have anything that can be taken away.", "err"); return; } }
     var st = { q:"", part:"all", rar:"any", pick:null };
     var wrap = document.createElement("div"); wrap.className = "catwrap"; wrap.setAttribute("role", "dialog"); wrap.setAttribute("aria-label", title);
     var box = document.createElement("div"); box.className = "catbox"; wrap.appendChild(box);
