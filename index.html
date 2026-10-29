@@ -2233,7 +2233,27 @@ function loadPoints(){
             }).catch(function(e){ say("pointsMsg", e.message, "err"); return false; });
           }, mine);
         });
-        irow.appendChild(ti); card.appendChild(irow);
+        irow.appendChild(ti);
+        /* every tester item in one go */
+        var tp = document.createElement("button"); tp.type = "button"; tp.className = "catpick";
+        var tps = document.createElement("span"); tps.className = "sw small"; tps.textContent = "🧪";
+        var tpt = document.createElement("span"); tpt.className = "t"; tpt.textContent = "Give all tester items";
+        tp.appendChild(tps); tp.appendChild(tpt); tp.setAttribute("aria-label", "Give all tester items to " + label);
+        tp.addEventListener("click", function(){
+          itemsReady().then(function(items){
+            var pack = items.filter(function(i){ return i.gift === "tester"; });
+            if (!pack.length || !window.confirm("Give " + label + " all " + pack.length + " tester items?\n\n" + pack.map(function(i){ return i.name; }).join(", "))) return;
+            tp.disabled = true; tpt.textContent = "Giving…";
+            var gave = 0, had = 0;
+            return pack.reduce(function(pr, it){ return pr.then(function(){
+              return invokeOn("givepoints", { action:"giveItem", id:u.id, item:it.id }).then(function(){ gave++; }, function(){ had++; });
+            }); }, Promise.resolve()).then(function(){
+              say("pointsMsg", "Gave " + label + " " + gave + " tester item" + (gave === 1 ? "" : "s") + (had ? " (" + had + " they already had)" : "") + ".", "ok");
+              tp.disabled = false; tpt.textContent = "Give all tester items";
+            });
+          });
+        });
+        irow.appendChild(tp); card.appendChild(irow);
         /* own photo */
         if (!u.owner) {
           var prow = document.createElement("div"); prow.className = "acct-row";
