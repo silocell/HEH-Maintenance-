@@ -2164,7 +2164,11 @@ function loadPoints(){
   var sec = document.getElementById("pointsSec"), host = document.getElementById("pointsRows");
   if(!sec || !canSync()) return Promise.resolve();
   itemsReady().catch(function(){});
+  /* Who has the Verified tick (Game Maker priority), fetched alongside. */
+  var verifiedP = invokeOn("gamemaker", { action:"verified" }).then(function(v){ return v.ids || []; }, function(){ return null; });
   return invokeOn("givepoints", { action:"list" }).then(function(d){
+    return verifiedP.then(function(vids){ d.verified = vids; return d; });
+  }).then(function(d){
     sec.hidden = false;
     host.textContent = "";
     var people = d.people || [];
@@ -2295,6 +2299,20 @@ function loadPoints(){
               .catch(function(e){ cb.checked = !cb.checked; say("pointsMsg", e.message, "err"); });
           });
           prow.appendChild(lab); card.appendChild(prow);
+        }
+        /* Verified: Game Maker priority - built straight away by the best model. */
+        if (!u.owner && d.verified) {
+          var vrow = document.createElement("div"); vrow.className = "acct-row";
+          var vlab = document.createElement("label"); var vcb = document.createElement("input"); vcb.type = "checkbox";
+          vcb.checked = d.verified.indexOf(u.id) >= 0;
+          vlab.appendChild(vcb); vlab.appendChild(document.createTextNode(" \u2705 Verified \u2014 Game Maker priority (built straight away)"));
+          vcb.addEventListener("change", function(){
+            invokeOn("gamemaker", { action:"verify", userId:u.id, on:vcb.checked }).then(function(){
+              if (vcb.checked) d.verified.push(u.id); else d.verified = d.verified.filter(function(x){ return x !== u.id; });
+              say("pointsMsg", label + (vcb.checked ? " is now Verified: their games are built straight away." : " is no longer Verified."), "ok");
+            }).catch(function(e){ vcb.checked = !vcb.checked; say("pointsMsg", e.message, "err"); });
+          });
+          vrow.appendChild(vlab); card.appendChild(vrow);
         }
         host.appendChild(card);
       });
