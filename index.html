@@ -3049,7 +3049,7 @@ function drawReports(){
     if(isGame){
       /* Play it before judging: the sandbox opens it even if it's been taken down. */
       var pl = document.createElement("a"); pl.className = "abtn quiet"; pl.target = "_blank"; pl.rel = "noopener";
-      pl.href = "https://civilinitiatives.org/sandbox/#play=" + encodeURIComponent(r.item_id); pl.textContent = "\u25b6 Play the game";
+      pl.href = "https://sandbox.civilinitiatives.org/#play=" + encodeURIComponent(r.item_id); pl.textContent = "\u25b6 Play the game";
       it.appendChild(pl);
     }
     if(r.status === "open"){
