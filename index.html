@@ -3046,6 +3046,11 @@ function drawReports(){
     var body = document.createElement("div"); body.className = "rep-body"; body.textContent = r.body || "(no words)"; it.appendChild(body);
     if(r.note){ var n = document.createElement("p"); n.className = "rep-note"; n.textContent = "\u201c" + r.note + "\u201d"; it.appendChild(n); }
     var isGame = r.kind === "game";
+    if(r.kind === "image"){
+      var vw = document.createElement("a"); vw.className = "abtn quiet"; vw.target = "_blank"; vw.rel = "noopener";
+      vw.href = "https://sandbox.civilinitiatives.org/#img=" + encodeURIComponent(r.item_id); vw.textContent = "\ud83d\uddbc\ufe0f View the picture";
+      it.appendChild(vw);
+    }
     if(isGame){
       /* Play it before judging: the sandbox opens it even if it's been taken down. */
       var pl = document.createElement("a"); pl.className = "abtn quiet"; pl.target = "_blank"; pl.rel = "noopener";
@@ -3064,7 +3069,7 @@ function drawReports(){
         invokeOn("report", { action:"resolve", id:r.id, outcome:"dismissed" }).then(function(){ say("reportMsg", "Dismissed.", "ok"); loadReports(); },
           function(e){ say("reportMsg", e.message, "err"); b.disabled = false; });
       });
-      if(r.author && !isGame){
+      if(r.author && !isGame && r.kind !== "image"){
         btn("Turn their chat off", "quiet", function(b){
           call({ action:"flag", userId:r.author, flag:"chat_ok", on:false }).then(function(){ say("reportMsg", "Took the chat away from " + (r.author_name || "them") + ".", "ok"); b.textContent = "Chat off \u2713"; },
             function(e){ say("reportMsg", e.message, "err"); b.disabled = false; });
