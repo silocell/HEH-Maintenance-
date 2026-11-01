@@ -300,6 +300,12 @@ button,input,select,textarea{font:inherit;color:inherit}
   background:var(--rule);color:var(--ink-soft);vertical-align:middle;
 }
 .wbadge.loud{background:var(--margin);color:#fff}
+.rep-item{border:1px solid var(--rule);border-radius:12px;padding:10px 12px;margin:8px 0}
+.rep-item.done{opacity:.6}
+.rep-top{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:.78rem;color:var(--ink-soft)}
+.rep-top b{color:var(--ink)}
+.rep-body{margin:6px 0;padding:6px 10px;border-left:3px solid var(--margin);overflow-wrap:anywhere;font-size:.9rem}
+.rep-note{font-size:.8rem;color:var(--ink-soft);margin:0 0 6px}
 .check{
   display:flex;align-items:baseline;gap:10px;padding:8px 0;
   border-top:1px solid var(--rule);font-size:.84rem;
@@ -438,6 +444,18 @@ body.demo #mainPanel .sec.off{ opacity:.42; pointer-events:none; user-select:non
   <div class="panel" id="mainPanel" hidden>
 
 
+
+      <div class="sec" id="reportSec">
+        <p class="sec-h">Reports<span class="wbadge loud" id="reportBadge" hidden></span></p>
+        <div id="reportList"></div>
+        <div class="arow" style="margin-top:10px">
+          <button type="button" class="abtn quiet" id="reportRefresh">Refresh</button>
+          <label style="display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--ink-soft)">
+            <input type="checkbox" id="reportDone"> Show the ones already dealt with
+          </label>
+        </div>
+        <p class="amsg" id="reportMsg">When someone reports a message, board post or reply, it shows here. Remove it, or dismiss the report if it&rsquo;s fine. Anything serious &mdash; take it to a teacher.</p>
+      </div>
 
       <div class="sec" id="watchSec">
         <p class="sec-h">Worth a look<span class="wbadge" id="watchBadge" hidden></span></p>
@@ -2966,6 +2984,58 @@ function paintRooms(rooms, members){
   });
 }
 
+/* ---------- reports (the report function) ---------- */
+var REPORTS = null;
+function loadReports(){
+  return invokeOn("report", { action:"list" }).then(function(d){ REPORTS = d; drawReports(); },
+    function(e){ var b = document.getElementById("reportList"); if(b) b.textContent = ""; say("reportMsg", e.message, "err"); });
+}
+function drawReports(){
+  var box = document.getElementById("reportList"), badge = document.getElementById("reportBadge");
+  if(!box || !REPORTS) return;
+  box.textContent = "";
+  var open = REPORTS.open || [], done = document.getElementById("reportDone").checked ? (REPORTS.done || []) : [];
+  badge.hidden = !open.length; badge.textContent = open.length;
+  if(!open.length && !done.length){ var e = document.createElement("p"); e.className = "amsg"; e.textContent = "No reports waiting. \u2705"; box.appendChild(e); return; }
+  open.concat(done).forEach(function(r){
+    var it = document.createElement("div"); it.className = "rep-item" + (r.status !== "open" ? " done" : "");
+    var top = document.createElement("div"); top.className = "rep-top";
+    function bit(label, val){ var s = document.createElement("span"); s.appendChild(document.createTextNode(label + " ")); var b = document.createElement("b"); b.textContent = val; s.appendChild(b); top.appendChild(s); }
+    bit("By", r.author_name || "someone"); bit("Where:", r.where); bit("Why:", r.reason); bit("Reported by", r.reporter_name);
+    var when = document.createElement("span"); when.textContent = new Date(r.created_at).toLocaleString([], { day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" }); top.appendChild(when);
+    it.appendChild(top);
+    var body = document.createElement("div"); body.className = "rep-body"; body.textContent = r.body || "(no words)"; it.appendChild(body);
+    if(r.note){ var n = document.createElement("p"); n.className = "rep-note"; n.textContent = "\u201c" + r.note + "\u201d"; it.appendChild(n); }
+    if(r.status === "open"){
+      var row = document.createElement("div"); row.className = "arow";
+      function btn(label, cls, fn){ var b = document.createElement("button"); b.type = "button"; b.className = "abtn" + (cls ? " " + cls : ""); b.textContent = label; b.addEventListener("click", function(){ b.disabled = true; fn(b); }); row.appendChild(b); return b; }
+      btn("Remove it", "danger", function(b){
+        invokeOn("report", { action:"resolve", id:r.id, outcome:"removed" }).then(function(){ say("reportMsg", "Removed. It's gone from the chat/board for everyone.", "ok"); loadReports(); },
+          function(e){ say("reportMsg", e.message, "err"); b.disabled = false; });
+      });
+      btn("It's fine \u2014 dismiss", "quiet", function(b){
+        invokeOn("report", { action:"resolve", id:r.id, outcome:"dismissed" }).then(function(){ say("reportMsg", "Dismissed.", "ok"); loadReports(); },
+          function(e){ say("reportMsg", e.message, "err"); b.disabled = false; });
+      });
+      if(r.author){
+        btn("Turn their chat off", "quiet", function(b){
+          call({ action:"flag", userId:r.author, flag:"chat_ok", on:false }).then(function(){ say("reportMsg", "Took the chat away from " + (r.author_name || "them") + ".", "ok"); b.textContent = "Chat off \u2713"; },
+            function(e){ say("reportMsg", e.message, "err"); b.disabled = false; });
+        });
+      }
+      it.appendChild(row);
+    } else {
+      var st = document.createElement("p"); st.className = "rep-note";
+      st.textContent = (r.status === "removed" ? "Removed" : "Dismissed") + (r.handled_by ? " by " + r.handled_by.split("@")[0] : "");
+      it.appendChild(st);
+    }
+    box.appendChild(it);
+  });
+}
+document.getElementById("reportRefresh").addEventListener("click", loadReports);
+document.getElementById("reportDone").addEventListener("change", drawReports);
+setInterval(function(){ if(!document.hidden && typeof canSync === "function" && canSync()) loadReports(); }, 120000);
+
 function loadRooms(){
   if(!sb) return;
   /* Through the admin function, which sees every room. Reading the tables
@@ -3914,6 +3984,7 @@ applyTheme(recall(THEME_KEY,null));
         loadSite();
         loadSchool();
         loadRooms();
+        loadReports();
         loadAsks();
         loadShows();
         checkBackup();
