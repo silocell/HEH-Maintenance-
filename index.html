@@ -2990,6 +2990,15 @@ function loadReports(){
   return invokeOn("report", { action:"list" }).then(function(d){ REPORTS = d; drawReports(); },
     function(e){ var b = document.getElementById("reportList"); if(b) b.textContent = ""; say("reportMsg", e.message, "err"); });
 }
+/* Banning is a big step, so it is asked twice - but not with a browser
+   pop-up: the button turns into "Sure? Ban for a month" for 4 seconds. */
+var banArmed = {};
+function confirmBan(r){
+  if(banArmed[r.id] && Date.now() - banArmed[r.id] < 4000){ delete banArmed[r.id]; return true; }
+  banArmed[r.id] = Date.now();
+  say("reportMsg", "Press the red button again within 4 seconds to remove the game and ban " + (r.author_name || "its maker") + " from making games for a month.", "err");
+  return false;
+}
 function drawReports(){
   var box = document.getElementById("reportList"), badge = document.getElementById("reportBadge");
   if(!box || !REPORTS) return;
@@ -3006,18 +3015,26 @@ function drawReports(){
     it.appendChild(top);
     var body = document.createElement("div"); body.className = "rep-body"; body.textContent = r.body || "(no words)"; it.appendChild(body);
     if(r.note){ var n = document.createElement("p"); n.className = "rep-note"; n.textContent = "\u201c" + r.note + "\u201d"; it.appendChild(n); }
+    var isGame = r.kind === "game";
+    if(isGame){
+      /* Play it before judging: the sandbox opens it even if it's been taken down. */
+      var pl = document.createElement("a"); pl.className = "abtn quiet"; pl.target = "_blank"; pl.rel = "noopener";
+      pl.href = "https://civilinitiatives.org/sandbox/#play=" + encodeURIComponent(r.item_id); pl.textContent = "\u25b6 Play the game";
+      it.appendChild(pl);
+    }
     if(r.status === "open"){
       var row = document.createElement("div"); row.className = "arow";
       function btn(label, cls, fn){ var b = document.createElement("button"); b.type = "button"; b.className = "abtn" + (cls ? " " + cls : ""); b.textContent = label; b.addEventListener("click", function(){ b.disabled = true; fn(b); }); row.appendChild(b); return b; }
-      btn("Remove it", "danger", function(b){
-        invokeOn("report", { action:"resolve", id:r.id, outcome:"removed" }).then(function(){ say("reportMsg", "Removed. It's gone from the chat/board for everyone.", "ok"); loadReports(); },
+      btn(isGame ? "Remove game + ban maker 1 month" : "Remove it", "danger", function(b){
+        if(isGame && !confirmBan(r)){ b.disabled = false; return; }
+        invokeOn("report", { action:"resolve", id:r.id, outcome:"removed" }).then(function(){ say("reportMsg", isGame ? "Game removed. " + (r.author_name || "Its maker") + " can't make games for a month." : "Removed. It's gone from the chat/board for everyone.", "ok"); loadReports(); },
           function(e){ say("reportMsg", e.message, "err"); b.disabled = false; });
       });
       btn("It's fine \u2014 dismiss", "quiet", function(b){
         invokeOn("report", { action:"resolve", id:r.id, outcome:"dismissed" }).then(function(){ say("reportMsg", "Dismissed.", "ok"); loadReports(); },
           function(e){ say("reportMsg", e.message, "err"); b.disabled = false; });
       });
-      if(r.author){
+      if(r.author && !isGame){
         btn("Turn their chat off", "quiet", function(b){
           call({ action:"flag", userId:r.author, flag:"chat_ok", on:false }).then(function(){ say("reportMsg", "Took the chat away from " + (r.author_name || "them") + ".", "ok"); b.textContent = "Chat off \u2713"; },
             function(e){ say("reportMsg", e.message, "err"); b.disabled = false; });
