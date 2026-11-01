@@ -457,6 +457,18 @@ body.demo #mainPanel .sec.off{ opacity:.42; pointer-events:none; user-select:non
         <p class="amsg" id="reportMsg">When someone reports a message, board post or reply, it shows here. Remove it, or dismiss the report if it&rsquo;s fine. Anything serious &mdash; take it to a teacher.</p>
       </div>
 
+      <div class="sec" id="gflagSec">
+        <p class="sec-h">Blocked game ideas<span class="wbadge loud" id="gflagBadge" hidden></span></p>
+        <div id="gflagList"></div>
+        <div class="arow" style="margin-top:10px">
+          <button type="button" class="abtn quiet" id="gflagRefresh">Refresh</button>
+          <label style="display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--ink-soft)">
+            <input type="checkbox" id="gflagDone"> Show the ones already decided
+          </label>
+        </div>
+        <p class="amsg" id="gflagMsg">Game Maker ideas the safeguard blocked, with its reasoning. Their Pounds were kept. If the AI overthought it, overrule: the game is built straight away and they're told when it's ready.</p>
+      </div>
+
       <div class="sec" id="watchSec">
         <p class="sec-h">Worth a look<span class="wbadge" id="watchBadge" hidden></span></p>
         <div class="stats" id="watchStats"></div>
@@ -3053,6 +3065,67 @@ document.getElementById("reportRefresh").addEventListener("click", loadReports);
 document.getElementById("reportDone").addEventListener("change", drawReports);
 setInterval(function(){ if(!document.hidden && typeof canSync === "function" && canSync()) loadReports(); }, 120000);
 
+/* ---------- blocked game ideas ----------
+   The Game Maker's safeguard blocks an idea before anything is built and
+   keeps the Pounds. Each one waits here with the safeguard's reasoning.
+   Overrule = the AI overthought it: built now at full speed, and the
+   maker gets a "your game is ready" notice. Uphold = it stays blocked. */
+var GFLAGS = null;
+function loadGameFlags(){
+  return invokeOn("gamemaker", { action:"flags" }).then(function(d){ GFLAGS = d.flags || []; drawGameFlags(); },
+    function(e){ var b = document.getElementById("gflagList"); if(b) b.textContent = ""; say("gflagMsg", e.message, "err"); });
+}
+function drawGameFlags(){
+  var box = document.getElementById("gflagList"), badge = document.getElementById("gflagBadge");
+  if(!box || !GFLAGS) return;
+  box.textContent = "";
+  var showDone = document.getElementById("gflagDone").checked;
+  var open = GFLAGS.filter(function(g){ return g.review === "pending"; });
+  var list = showDone ? GFLAGS : open;
+  badge.hidden = !open.length; badge.textContent = open.length;
+  if(!list.length){ var e = document.createElement("p"); e.className = "amsg"; e.textContent = "No blocked ideas waiting. \u2705"; box.appendChild(e); return; }
+  list.forEach(function(g){
+    var it = document.createElement("div"); it.className = "rep-item" + (g.review !== "pending" ? " done" : "");
+    var top = document.createElement("div"); top.className = "rep-top";
+    function bit(label, val){ var s = document.createElement("span"); s.appendChild(document.createTextNode(label + " ")); var b = document.createElement("b"); b.textContent = val; s.appendChild(b); top.appendChild(s); }
+    bit("By", g.name || "someone"); bit("Blocked for:", g.flag_category || "?"); bit("Paid:", "\ud83e\ude99 " + g.cost);
+    if(g.base_id) bit("Change to game", "#" + g.base_id);
+    var when = document.createElement("span"); when.textContent = new Date(g.created_at).toLocaleString([], { day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" }); top.appendChild(when);
+    it.appendChild(top);
+    var body = document.createElement("div"); body.className = "rep-body";
+    var t = document.createElement("b"); t.textContent = g.body; body.appendChild(t);
+    body.appendChild(document.createElement("br")); body.appendChild(document.createTextNode(g.idea || ""));
+    it.appendChild(body);
+    var why = document.createElement("p"); why.className = "rep-note"; why.style.whiteSpace = "pre-wrap";
+    why.textContent = "Safeguard: " + (g.flag_reason || "(no reasoning)"); it.appendChild(why);
+    if(g.review === "pending"){
+      var row = document.createElement("div"); row.className = "arow";
+      function btn(label, cls, verdict){
+        var b = document.createElement("button"); b.type = "button"; b.className = "abtn" + (cls ? " " + cls : ""); b.textContent = label;
+        b.addEventListener("click", function(){
+          row.querySelectorAll("button").forEach(function(x){ x.disabled = true; });
+          invokeOn("gamemaker", { action:"review", id:g.id, verdict:verdict }).then(function(){
+            say("gflagMsg", verdict === "overrule" ? "Overruled - \u201c" + g.body + "\u201d is being built now. " + (g.name || "They") + " will be told when it's in the library." : "Kept blocked.", "ok");
+            loadGameFlags();
+          }, function(e){ say("gflagMsg", e.message, "err"); row.querySelectorAll("button").forEach(function(x){ x.disabled = false; }); });
+        });
+        row.appendChild(b);
+      }
+      btn("AI overthought it \u2014 build it", "", "overrule");
+      btn("Keep it blocked", "quiet", "uphold");
+      it.appendChild(row);
+    } else {
+      var st = document.createElement("p"); st.className = "rep-note";
+      st.textContent = (g.review === "overruled" ? "Overruled - built" : "Kept blocked") + (g.reviewed_by ? " by " + g.reviewed_by.split("@")[0] : "");
+      it.appendChild(st);
+    }
+    box.appendChild(it);
+  });
+}
+document.getElementById("gflagRefresh").addEventListener("click", loadGameFlags);
+document.getElementById("gflagDone").addEventListener("change", drawGameFlags);
+setInterval(function(){ if(!document.hidden && typeof canSync === "function" && canSync() && GFLAGS) loadGameFlags(); }, 120000);
+
 function loadRooms(){
   if(!sb) return;
   /* Through the admin function, which sees every room. Reading the tables
@@ -3377,7 +3450,7 @@ document.getElementById("loadLog").addEventListener("click", loadLog);
    deliberate rather than broken. */
 function hideForHelper(){
   document.querySelectorAll("#mainPanel .sec").forEach(function(sec){
-    if(sec.id === "switchSec" || sec.id === "helperSec") return;
+    if(sec.id === "switchSec" || sec.id === "helperSec" || sec.id === "reportSec") return;   /* helpers deal with reports too */
     sec.hidden = true;
   });
   document.getElementById("helperSec").hidden = false;
@@ -3981,6 +4054,7 @@ applyTheme(recall(THEME_KEY,null));
         hideForHelper();
         loadSwitches();
         loadPeople();
+        loadReports();
         return;
       }
     /* The demo account is refused most of these, so don't ask. A panel
@@ -4002,6 +4076,7 @@ applyTheme(recall(THEME_KEY,null));
         loadSchool();
         loadRooms();
         loadReports();
+        loadGameFlags();
         loadAsks();
         loadShows();
         checkBackup();
