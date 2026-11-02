@@ -475,6 +475,7 @@ body.demo #mainPanel .sec.off{ opacity:.42; pointer-events:none; user-select:non
         <p id="budgetRules" style="font-size:.88rem;line-height:1.55;margin:0 0 6px"></p>
         <p id="budgetWhy" style="font-size:.82rem;line-height:1.55;color:var(--ink-soft);margin:0 0 10px"></p>
         <div id="budgetDays" style="font-size:.78rem;color:var(--ink-soft);font-variant-numeric:tabular-nums"></div>
+        <p id="budgetSpend" style="font-size:.82rem;line-height:1.55;color:var(--ink-soft);margin:8px 0 0"></p>
         <div class="arow" id="budgetOwner" style="margin-top:10px" hidden>
           <input type="text" inputmode="decimal" id="budgetBal" maxlength="10" placeholder="Balance in the Console, e.g. 87.40" aria-label="Credit balance shown in the Claude Console" class="gwhy" style="max-width:260px">
           <button type="button" class="abtn" id="budgetSet">Update</button>
@@ -3131,6 +3132,13 @@ function drawBudget(d){
   document.getElementById("budgetWhy").textContent = d.why || "";
   var days = Object.keys(d.perDay || {}).sort();
   document.getElementById("budgetDays").textContent = days.length ? "Game Maker spend by day: " + days.map(function(k){ return k.slice(8) + "/" + k.slice(5,7) + " $" + d.perDay[k].toFixed(2); }).join(" · ") : "No Game Maker spending recorded yet.";
+  var sdn = d.spendDown, sdEl = document.getElementById("budgetSpend");
+  if (sdn && sdEl) {
+    var start = f.use_by ? new Date(new Date(f.use_by).getTime() - sdn.days * 864e5).toLocaleDateString("en-GB", { day:"numeric", month:"short" }) : "?";
+    sdEl.textContent = "Month-end spend-down from " + start + ": what's left goes half on Map Quest questions, half on Level Up questions. " +
+      "So far this month: $" + sdn.geoUsd.toFixed(2) + " on Map Quest (" + sdn.geoQuestions + " questions in the bank), $" + sdn.levelupUsd.toFixed(2) +
+      " on Level Up, and " + sdn.houseGames + " Launchpad game" + (sdn.houseGames === 1 ? "" : "s") + " made in quiet weeks.";
+  }
   document.getElementById("budgetOwner").hidden = !d.owner;
   if(d.balanceAt) document.getElementById("budgetBal").placeholder = "Console balance (last: $" + Number(d.balance).toFixed(2) + ", " + new Date(d.balanceAt).toLocaleDateString("en-GB", { day:"numeric", month:"short" }) + ")";
 }
