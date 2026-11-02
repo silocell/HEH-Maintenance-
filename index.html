@@ -3134,8 +3134,11 @@ function drawBudget(d){
   document.getElementById("budgetDays").textContent = days.length ? "Game Maker spend by day: " + days.map(function(k){ return k.slice(8) + "/" + k.slice(5,7) + " $" + d.perDay[k].toFixed(2); }).join(" · ") : "No Game Maker spending recorded yet.";
   var sdn = d.spendDown, sdEl = document.getElementById("budgetSpend");
   if (sdn && sdEl) {
-    var start = f.use_by ? new Date(new Date(f.use_by).getTime() - sdn.days * 864e5).toLocaleDateString("en-GB", { day:"numeric", month:"short" }) : "?";
-    sdEl.textContent = "Month-end spend-down from " + start + ": what's left goes half on Map Quest questions, half on Level Up questions. " +
+    var startAt = sdn.from ? new Date(sdn.from) : (f.use_by ? new Date(new Date(f.use_by).getTime() - sdn.days * 864e5) : null);
+    var start = startAt ? startAt.toLocaleDateString("en-GB", { day:"numeric", month:"short" }) : "?";
+    var begun = startAt && startAt.getTime() <= Date.now();
+    sdEl.textContent = (begun ? "Loading questions since " : "Question loading starts ") + start + ", paced evenly to the \u201cuse by\u201d date: spare credit goes half on Map Quest questions, half on Level Up questions" +
+      (sdn.houseGames0 === false ? " (no Launchpad games this month). " : ", and quiet weeks get a Launchpad game a day. ") +
       "So far this month: $" + sdn.geoUsd.toFixed(2) + " on Map Quest (" + sdn.geoQuestions + " questions in the bank), $" + sdn.levelupUsd.toFixed(2) +
       " on Level Up, and " + sdn.houseGames + " Launchpad game" + (sdn.houseGames === 1 ? "" : "s") + " made in quiet weeks.";
   }
