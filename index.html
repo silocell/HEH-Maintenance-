@@ -643,6 +643,19 @@ body.demo #mainPanel .sec.off{ opacity:.42; pointer-events:none; user-select:non
         </div>
       </div>
 
+      <div class="sec" id="sandSec" hidden>
+        <p class="sec-h">Test accounts</p>
+        <p class="amsg" style="margin-top:0">For app store reviewers and visitors. A test account can use everything, but pupils never see its chat or board posts, its games or its name, and it only sees its own posts and yours. It can't trade with pupils or join private rooms. It switches back to normal on the date shown.</p>
+        <div class="arow">
+          <div class="afield"><label for="sandEmail">Email</label><input type="email" id="sandEmail" autocomplete="off"></div>
+          <div class="afield"><label for="sandDays">Days</label><input type="number" id="sandDays" min="1" max="365" value="30" style="width:80px"></div>
+          <div class="afield"><label for="sandNote">Who is it?</label><input type="text" id="sandNote" maxlength="120" placeholder="e.g. Microsoft Store reviewer"></div>
+          <button type="button" class="abtn" id="sandAdd">Make test account</button>
+        </div>
+        <div id="sandRows" style="font-size:.88rem;line-height:1.6"></div>
+        <p class="amsg" id="sandMsg"></p>
+      </div>
+
       <div class="sec" id="addSec">
         <p class="sec-h">Add an account</p>
         <form id="newUserForm">
@@ -3215,6 +3228,44 @@ document.getElementById("budgetSet").addEventListener("click", function(){
   }, function(e){ say("budgetMsg", e.message, "err"); }).then(function(){ btn.disabled = false; });
 });
 
+/* ---------- test accounts ----------
+   Sandboxed accounts for app store reviewers. The list lives with the
+   Game Maker function; only the owner can see or change it. */
+function loadSand(){
+  return invokeOn("gamemaker", { action:"sandbox-list" }).then(drawSand,
+    function(e){ var s = document.getElementById("sandSec"); if(s) s.hidden = true; });
+}
+function drawSand(d){
+  var sec = document.getElementById("sandSec"); sec.hidden = false;
+  var host = document.getElementById("sandRows"); host.textContent = "";
+  var list = (d && d.accounts) || [];
+  if(!list.length){ host.textContent = "No test accounts."; return; }
+  list.forEach(function(a){
+    var row = document.createElement("div"); row.className = "arow"; row.style.alignItems = "center"; row.style.marginBottom = "6px";
+    var live = !a.until || new Date(a.until).getTime() > Date.now();
+    var t = document.createElement("span"); t.style.flex = "1"; t.style.minWidth = "0"; t.style.overflowWrap = "anywhere";
+    t.textContent = a.email + (a.note ? " \u00b7 " + a.note : "") + " \u00b7 " +
+      (live ? "test account until " + new Date(a.until).toLocaleDateString("en-GB", { day:"numeric", month:"short" }) : "expired - now a normal account");
+    var b = document.createElement("button"); b.type = "button"; b.className = "abtn quiet"; b.textContent = "Remove";
+    b.addEventListener("click", function(){
+      b.disabled = true;
+      invokeOn("gamemaker", { action:"sandbox-remove", email:a.email }).then(function(r){ say("sandMsg", "Removed. " + a.email + " is a normal account again.", "ok"); drawSand(r); },
+        function(e){ say("sandMsg", e.message, "err"); b.disabled = false; });
+    });
+    row.appendChild(t); row.appendChild(b); host.appendChild(row);
+  });
+}
+document.getElementById("sandAdd").addEventListener("click", function(){
+  var email = document.getElementById("sandEmail").value.trim();
+  if(email.indexOf("@") < 1){ say("sandMsg", "Type the account's email address.", "err"); return; }
+  var btn = this; btn.disabled = true; say("sandMsg", "Saving…");
+  invokeOn("gamemaker", { action:"sandbox-add", email:email, days:Number(document.getElementById("sandDays").value) || 30,
+    note:document.getElementById("sandNote").value.trim() }).then(function(r){
+    document.getElementById("sandEmail").value = ""; document.getElementById("sandNote").value = "";
+    say("sandMsg", "Done. Now make the account below with the same email, if it doesn't exist yet.", "ok"); drawSand(r);
+  }, function(e){ say("sandMsg", e.message, "err"); }).then(function(){ btn.disabled = false; });
+});
+
 /* ---------- blocked game ideas ----------
    The Game Maker's safeguard blocks an idea before anything is built and
    keeps the Pounds. Each one waits here with the safeguard's reasoning.
@@ -4228,6 +4279,7 @@ applyTheme(recall(THEME_KEY,null));
         loadReports();
         loadGameFlags();
         loadBudget();
+        loadSand();
         loadAsks();
         loadShows();
         checkBackup();
