@@ -469,6 +469,20 @@ body.demo #mainPanel .sec.off{ opacity:.42; pointer-events:none; user-select:non
         <p class="amsg" id="gflagMsg">Game Maker ideas the safeguard blocked, with its reasoning. Their Pounds were kept. If the AI overthought it, overrule: the game is built straight away and they're told when it's ready.</p>
       </div>
 
+      <div class="sec" id="budgetSec">
+        <p class="sec-h">AI budget</p>
+        <div class="stats" id="budgetStats"></div>
+        <p id="budgetRules" style="font-size:.88rem;line-height:1.55;margin:0 0 6px"></p>
+        <p id="budgetWhy" style="font-size:.82rem;line-height:1.55;color:var(--ink-soft);margin:0 0 10px"></p>
+        <div id="budgetDays" style="font-size:.78rem;color:var(--ink-soft);font-variant-numeric:tabular-nums"></div>
+        <div class="arow" id="budgetOwner" style="margin-top:10px" hidden>
+          <input type="text" inputmode="decimal" id="budgetBal" maxlength="10" placeholder="Balance in the Console, e.g. 87.40" aria-label="Credit balance shown in the Claude Console" class="gwhy" style="max-width:260px">
+          <button type="button" class="abtn" id="budgetSet">Update</button>
+          <button type="button" class="abtn quiet" id="budgetRefresh">Refresh</button>
+        </div>
+        <p class="amsg" id="budgetMsg">The monthly $100 of Claude credit can't be carried over. A Groq model reads these numbers every 6 hours and sets the Game Maker's rules so the credit is used up by the "use by" date, never before; the code keeps its decisions inside safe limits. Now and then, type in the balance from platform.claude.com &rarr; Billing so the numbers stay exact.</p>
+      </div>
+
       <div class="sec" id="watchSec">
         <p class="sec-h">Worth a look<span class="wbadge" id="watchBadge" hidden></span></p>
         <div class="stats" id="watchStats"></div>
@@ -3088,6 +3102,48 @@ document.getElementById("reportRefresh").addEventListener("click", loadReports);
 document.getElementById("reportDone").addEventListener("change", drawReports);
 setInterval(function(){ if(!document.hidden && typeof canSync === "function" && canSync()) loadReports(); }, 120000);
 
+/* ---------- AI budget ----------
+   The Game Maker's monthly Claude credit: what's left, the pace, and the
+   rules the Groq advisor has set. The owner types in the Console balance
+   now and then so the estimate stays exact. */
+function loadBudget(){
+  return invokeOn("gamemaker", { action:"budget" }).then(drawBudget,
+    function(e){ var s = document.getElementById("budgetSec"); if(s && /Not for this account/.test(e.message)) s.hidden = true; else say("budgetMsg", e.message, "err"); });
+}
+function drawBudget(d){
+  var f = d.facts || {}, p = d.policy || {};
+  var host = document.getElementById("budgetStats"); host.textContent = "";
+  function money(x){ return "$" + Number(x || 0).toFixed(2); }
+  var useBy = f.use_by ? new Date(f.use_by).toLocaleDateString("en-GB", { day:"numeric", month:"short" }) : "?";
+  [[money(f.remaining_usd), "left of $" + (f.credit_usd || 100)],
+   [money(f.daily_allowance_usd), "to spend a day"],
+   [money(f.game_spend_per_day_last_7_days_usd), "spent a day (7 days)"],
+   [useBy, Math.round(f.days_left || 0) + " days left"],
+   ["$" + Number(f.average_cost_per_game_usd || 0).toFixed(2), "per game"]].forEach(function(pair){
+    var b = document.createElement("div"); b.className = "stat";
+    var n = document.createElement("div"); n.className = "stat-n"; n.textContent = pair[0];
+    var l = document.createElement("div"); l.className = "stat-l"; l.textContent = pair[1];
+    b.appendChild(n); b.appendChild(l); host.appendChild(b);
+  });
+  document.getElementById("budgetRules").textContent = "Rules now: " + p.games_per_week + " games a week each · prices ×" + p.price_scale +
+    " · " + p.effort + " effort · Opus for priority makers: " + (p.priority_opus ? "yes" : "no") +
+    (d.by ? " — decided by " + d.by : "") + (d.at ? ", " + new Date(d.at).toLocaleString("en-GB", { day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" }) : "");
+  document.getElementById("budgetWhy").textContent = d.why || "";
+  var days = Object.keys(d.perDay || {}).sort();
+  document.getElementById("budgetDays").textContent = days.length ? "Game Maker spend by day: " + days.map(function(k){ return k.slice(8) + "/" + k.slice(5,7) + " $" + d.perDay[k].toFixed(2); }).join(" · ") : "No Game Maker spending recorded yet.";
+  document.getElementById("budgetOwner").hidden = !d.owner;
+  if(d.balanceAt) document.getElementById("budgetBal").placeholder = "Console balance (last: $" + Number(d.balance).toFixed(2) + ", " + new Date(d.balanceAt).toLocaleDateString("en-GB", { day:"numeric", month:"short" }) + ")";
+}
+document.getElementById("budgetRefresh").addEventListener("click", loadBudget);
+document.getElementById("budgetSet").addEventListener("click", function(){
+  var v = parseFloat(String(document.getElementById("budgetBal").value).replace(/[$,\s]/g, ""));
+  if(!(v >= 0)){ say("budgetMsg", "Type the balance from the Console, e.g. 87.40", "err"); return; }
+  var btn = this; btn.disabled = true; say("budgetMsg", "Saving and asking the advisor again…");
+  invokeOn("gamemaker", { action:"budget-set", balance:v }).then(function(){
+    document.getElementById("budgetBal").value = ""; say("budgetMsg", "Saved. The advisor has looked again.", "ok"); return loadBudget();
+  }, function(e){ say("budgetMsg", e.message, "err"); }).then(function(){ btn.disabled = false; });
+});
+
 /* ---------- blocked game ideas ----------
    The Game Maker's safeguard blocks an idea before anything is built and
    keeps the Pounds. Each one waits here with the safeguard's reasoning.
@@ -4100,6 +4156,7 @@ applyTheme(recall(THEME_KEY,null));
         loadRooms();
         loadReports();
         loadGameFlags();
+        loadBudget();
         loadAsks();
         loadShows();
         checkBackup();
