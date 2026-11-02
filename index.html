@@ -476,6 +476,25 @@ body.demo #mainPanel .sec.off{ opacity:.42; pointer-events:none; user-select:non
         <p id="budgetWhy" style="font-size:.82rem;line-height:1.55;color:var(--ink-soft);margin:0 0 10px"></p>
         <div id="budgetDays" style="font-size:.78rem;color:var(--ink-soft);font-variant-numeric:tabular-nums"></div>
         <p id="budgetSpend" style="font-size:.82rem;line-height:1.55;color:var(--ink-soft);margin:8px 0 0"></p>
+        <div id="budgetQ" hidden style="margin-top:12px;padding:12px;border:1px solid var(--rule);border-radius:10px">
+          <p style="font-weight:600;margin:0 0 8px">Question loading</p>
+          <div class="arow">
+            <label style="font-size:.85rem">When
+              <select id="qMode" class="gwhy" style="display:block;margin-top:4px;max-width:100%">
+                <option value="questions">Load questions now, all month (no Launchpad games)</option>
+                <option value="auto">Normal: Launchpad games in quiet weeks, questions in the last 3 days</option>
+                <option value="pause">Pause: no question loading, no Launchpad games</option>
+              </select>
+            </label>
+          </div>
+          <label for="qSplit" style="font-size:.85rem;display:block">Split: <span id="qSplitTxt"></span></label>
+          <input type="range" id="qSplit" min="0" max="100" step="10" style="width:100%;max-width:360px">
+          <div style="display:flex;gap:24px;flex-wrap:wrap;margin-top:8px;font-size:.85rem">
+            <fieldset id="qGeo" style="border:0;padding:0;margin:0"><legend style="font-weight:600">Map Quest topics</legend></fieldset>
+            <fieldset id="qLu" style="border:0;padding:0;margin:0"><legend style="font-weight:600">Level Up subjects</legend></fieldset>
+          </div>
+          <div class="arow" style="margin-top:10px;margin-bottom:0"><button type="button" class="abtn" id="qSave">Save question settings</button></div>
+        </div>
         <div class="arow" id="budgetOwner" style="margin-top:10px" hidden>
           <input type="text" inputmode="decimal" id="budgetBal" maxlength="10" placeholder="Balance in the Console, e.g. 87.40" aria-label="Credit balance shown in the Claude Console" class="gwhy" style="max-width:260px">
           <button type="button" class="abtn" id="budgetSet">Update</button>
@@ -3137,14 +3156,54 @@ function drawBudget(d){
     var startAt = sdn.from ? new Date(sdn.from) : (f.use_by ? new Date(new Date(f.use_by).getTime() - sdn.days * 864e5) : null);
     var start = startAt ? startAt.toLocaleDateString("en-GB", { day:"numeric", month:"short" }) : "?";
     var begun = startAt && startAt.getTime() <= Date.now();
-    sdEl.textContent = (begun ? "Loading questions since " : "Question loading starts ") + start + ", paced evenly to the \u201cuse by\u201d date: spare credit goes half on Map Quest questions, half on Level Up questions" +
+    if (d.questions && d.questions.mode === "pause") { sdEl.textContent = "Question loading is paused. So far this month: $" + sdn.geoUsd.toFixed(2) + " on Map Quest, $" + sdn.levelupUsd.toFixed(2) + " on Level Up."; }
+    else sdEl.textContent = (begun ? "Loading questions since " : "Question loading starts ") + start + ", paced evenly to the \u201cuse by\u201d date: spare credit goes " + (d.questions ? d.questions.split + "% on Map Quest questions, " + (100 - d.questions.split) + "% on Level Up questions" : "half on Map Quest questions, half on Level Up questions") +
       (sdn.houseGames0 === false ? " (no Launchpad games this month). " : ", and quiet weeks get a Launchpad game a day. ") +
       "So far this month: $" + sdn.geoUsd.toFixed(2) + " on Map Quest (" + sdn.geoQuestions + " questions in the bank), $" + sdn.levelupUsd.toFixed(2) +
       " on Level Up, and " + sdn.houseGames + " Launchpad game" + (sdn.houseGames === 1 ? "" : "s") + " made in quiet weeks.";
   }
   document.getElementById("budgetOwner").hidden = !d.owner;
+  drawQ(d.questions, d.owner);
   if(d.balanceAt) document.getElementById("budgetBal").placeholder = "Console balance (last: $" + Number(d.balance).toFixed(2) + ", " + new Date(d.balanceAt).toLocaleDateString("en-GB", { day:"numeric", month:"short" }) + ")";
 }
+/* Question loading: the owner picks when, the split, and the topics. */
+var Q_NAMES = { uk:"UK", europe:"Europe", world:"World countries & capitals", continents:"Continents, oceans & climate", compass:"Compass & directions",
+                maths:"Maths", english:"English", science:"Science" };
+function drawQ(q, owner){
+  var box = document.getElementById("budgetQ");
+  if(!box) return;
+  box.hidden = !q || !owner;
+  if(box.hidden) return;
+  document.getElementById("qMode").value = q.mode;
+  var sl = document.getElementById("qSplit"); sl.value = q.split; splitTxt();
+  function ticks(id, keys, on, per, cap){
+    var fs = document.getElementById(id);
+    Array.prototype.slice.call(fs.querySelectorAll("label")).forEach(function(l){ l.remove(); });
+    keys.forEach(function(k){
+      var l = document.createElement("label"); l.style.display = "block"; l.style.margin = "4px 0";
+      var c = document.createElement("input"); c.type = "checkbox"; c.value = k; c.checked = on.indexOf(k) >= 0;
+      var n = (per && per[k]) || 0;
+      l.appendChild(c); l.appendChild(document.createTextNode(" " + (Q_NAMES[k] || k) + " \u2014 " + n + (cap ? " of " + cap : "") + " questions"));
+      fs.appendChild(l);
+    });
+  }
+  ticks("qGeo", q.geoTopics || [], q.geo || [], q.geoPer, q.geoCap);
+  ticks("qLu", q.luSubjects || [], q.lu || [], q.luPer, 0);
+}
+function splitTxt(){
+  var v = Number(document.getElementById("qSplit").value);
+  document.getElementById("qSplitTxt").textContent = v + "% Map Quest \u00b7 " + (100 - v) + "% Level Up";
+}
+document.getElementById("qSplit").addEventListener("input", splitTxt);
+document.getElementById("qSave").addEventListener("click", function(){
+  function picked(id){ return Array.prototype.slice.call(document.querySelectorAll("#" + id + " input:checked")).map(function(c){ return c.value; }); }
+  var cfg = { mode: document.getElementById("qMode").value, split: Number(document.getElementById("qSplit").value), geo: picked("qGeo"), lu: picked("qLu") };
+  if(cfg.mode !== "pause" && !cfg.geo.length && !cfg.lu.length){ say("budgetMsg", "Tick at least one topic, or choose Pause.", "err"); return; }
+  var btn = this; btn.disabled = true; say("budgetMsg", "Saving…");
+  invokeOn("gamemaker", { action:"budget-mode", qcfg: cfg }).then(function(){
+    say("budgetMsg", "Saved. The next 10-minute tick uses these settings.", "ok"); return loadBudget();
+  }, function(e){ say("budgetMsg", e.message, "err"); }).then(function(){ btn.disabled = false; });
+});
 document.getElementById("budgetRefresh").addEventListener("click", loadBudget);
 document.getElementById("budgetSet").addEventListener("click", function(){
   var v = parseFloat(String(document.getElementById("budgetBal").value).replace(/[$,\s]/g, ""));
