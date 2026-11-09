@@ -473,18 +473,6 @@ body.demo #mainPanel .sec.off{ opacity:.42; pointer-events:none; user-select:non
         <p class="amsg" id="gflagMsg">Game Maker ideas the safeguard blocked, with its reasoning. Their Pounds were kept. If the AI overthought it, overrule: the game is built straight away and they're told when it's ready.</p>
       </div>
 
-      <div class="sec" id="featSec">
-        <p class="sec-h">Shop, Game Maker &amp; footer</p>
-        <div class="arow" id="featGlobal" style="flex-wrap:wrap;gap:14px"></div>
-        <div class="arow" style="margin-top:10px">
-          <input type="email" id="featEmail" maxlength="200" placeholder="Someone's email" aria-label="Email of the person" class="gwhy" style="max-width:260px">
-          <select id="featWhich" aria-label="Which" class="gwhy" style="max-width:150px"><option value="shop">Shop</option><option value="gamemaker">Game Maker</option><option value="footer">Footer</option></select>
-          <button type="button" class="abtn" id="featOff">Switch off for them</button>
-        </div>
-        <div id="featList" style="margin-top:8px;font-size:.88rem"></div>
-        <p class="amsg" id="featMsg">Switch the Launchpad Shop, the Game Maker or the Launchpad footer off for everyone, or just for some people. Admins always keep all three.</p>
-      </div>
-
       <div class="sec" id="vidSec">
         <p class="sec-h">Reported videos<span class="wbadge" id="vidBadge" hidden></span></p>
         <div id="vidList" style="display:grid;gap:10px"></div>
@@ -1139,8 +1127,8 @@ function loadOutstanding(){
 var userNames = {};   /* id -> the name set above, for the Games list */
 function loadUsers(){
   say("usersMsg","Loading…");
-  return Promise.all([ call({ action:"list" }), loadOutstanding() ]).then(function(got){
-    var d = got[0];
+  return Promise.all([ call({ action:"list" }), loadOutstanding(), getFeat() ]).then(function(got){
+    var d = got[0], feat = got[2];
     var host = document.getElementById("userRows");
     host.textContent = "";
 
@@ -1248,6 +1236,7 @@ function loadUsers(){
       } else {
         row.appendChild(flagBtn(u,"ai_ok",   u.aiOk,   "Explainer on",  "Explainer off"));
         row.appendChild(flagBtn(u,"chat_ok", u.chatOk, "Chat on",       "Chat off"));
+        if(feat && feat.switches) FEATS.forEach(function(f){ if(f[0] in feat.switches) row.appendChild(featBtn(u, feat, f[0], f[1])); });
       }
       card.appendChild(row);
 
@@ -3162,40 +3151,53 @@ setInterval(function(){ if(!document.hidden && typeof canSync === "function" && 
    rules the Groq advisor has set. The owner types in the Console balance
    now and then so the estimate stays exact. */
 /* ---------- Shop & Game Maker switches ---------- */
-function loadFeatures(){
-  return sb.rpc("admin_features").then(function(r){
-    if(r.error){ say("featMsg", /function|schema cache/i.test(r.error.message) ? "Needs the latest Suite update on the server (command 3)." : r.error.message, "err"); return; }
-    drawFeatures(r.data);
+/* ---------- Shop, Game Maker and footer: the same kind of switches as the explainer ----------
+   One button each in the Switches row for everyone, and one button each on
+   every person's row. Admins always keep all three. */
+var FEATS = [["shop","Shop"],["gamemaker","Game Maker"],["footer","Footer"]];
+function getFeat(){
+  return sb.rpc("admin_features").then(function(r){ return r.error ? null : r.data; }, function(){ return null; });
+}
+function featBlocked(d, email, key){
+  return !!(d && (d.blocked||[]).some(function(b){ return b.feature === key && (b.email||"").toLowerCase() === (email||"").toLowerCase(); }));
+}
+function addFeatSwitches(host){
+  return getFeat().then(function(d){
+    if(!d || !d.switches) return;
+    FEATS.forEach(function(f){
+      var on = d.switches[f[0]] !== false;
+      if(!(f[0] in d.switches)) return;   // the server hasn't had this switch's command yet
+      var b = document.createElement("button");
+      b.type = "button"; b.className = on ? "abtn" : "abtn quiet";
+      b.textContent = f[1] + (on ? " on" : " off");
+      b.addEventListener("click", function(){
+        if(on && !window.confirm("Turn the " + f[1].toLowerCase() + " off for everyone? Admins keep it.")) return;
+        b.disabled = true;
+        sb.rpc("admin_switch", { f:f[0], on_:!on }).then(function(r){
+          if(r.error){ say("switchMsg", r.error.message, "err"); b.disabled = false; return; }
+          say("switchMsg", f[1] + (on ? " is now off for everyone (admins keep it)." : " is back on."), "ok");
+          loadSwitches();
+        });
+      });
+      host.appendChild(b);
+    });
   });
 }
-function drawFeatures(d){
-  if(!d) return;
-  var g = document.getElementById("featGlobal"); g.textContent = "";
-  [["shop","🛍️ Launchpad Shop"],["gamemaker","🎮 Game Maker"],["footer","🧾 Launchpad footer"]].forEach(function(f){
-    var on = d.switches[f[0]] !== false, lab = document.createElement("label");
-    lab.style.cssText = "display:flex;gap:8px;align-items:center;font-weight:600";
-    var cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = on;
-    cb.onchange = function(){ sb.rpc("admin_switch", { f:f[0], on_:cb.checked }).then(function(r){ if(r.error){ say("featMsg", r.error.message, "err"); cb.checked = !cb.checked; return; } drawFeatures(r.data); say("featMsg", f[1] + (cb.checked ? " is on for everyone." : " is off for everyone (except admins)."), "ok"); }); };
-    lab.appendChild(cb); lab.appendChild(document.createTextNode(f[1] + " on for everyone")); g.appendChild(lab);
+function featBtn(u, d, key, label){
+  var off = featBlocked(d, u.email, key), onNow = !off;
+  var b = document.createElement("button");
+  b.type = "button"; b.className = onNow ? "abtn" : "abtn quiet";
+  b.textContent = label + (onNow ? " on" : " off");
+  b.addEventListener("click", function(){
+    b.disabled = true;
+    sb.rpc("admin_block", { who:u.email, f:key, blocked:onNow }).then(function(r){
+      if(r.error){ say("usersMsg", r.error.message, "err"); b.disabled = false; return; }
+      say("usersMsg", (onNow ? "Switched the " + label.toLowerCase() + " off for " : "Switched the " + label.toLowerCase() + " back on for ") + (u.email || u.name) + ".", "ok");
+      loadUsers();
+    });
   });
-  var L = document.getElementById("featList"); L.textContent = "";
-  if(!d.blocked.length){ L.textContent = "Nobody has it switched off just for them."; return; }
-  d.blocked.forEach(function(b){
-    var row = document.createElement("div"); row.style.cssText = "display:flex;gap:8px;align-items:center;margin:4px 0";
-    row.appendChild(document.createTextNode(({ shop:"🛍️ Shop", gamemaker:"🎮 Game Maker", footer:"🧾 Footer" }[b.feature] || b.feature) + " off for " + b.name + " (" + b.email + ")"));
-    var on = document.createElement("button"); on.type = "button"; on.className = "abtn quiet"; on.textContent = "Switch back on";
-    on.onclick = function(){ sb.rpc("admin_block", { who:b.email, f:b.feature, blocked:false }).then(function(r){ if(r.error) say("featMsg", r.error.message, "err"); else drawFeatures(r.data); }); };
-    row.appendChild(on); L.appendChild(row);
-  });
+  return b;
 }
-document.getElementById("featOff").onclick = function(){
-  var em = document.getElementById("featEmail").value.trim(), f = document.getElementById("featWhich").value;
-  if(!em) return;
-  sb.rpc("admin_block", { who:em, f:f, blocked:true }).then(function(r){
-    if(r.error){ say("featMsg", r.error.message, "err"); return; }
-    document.getElementById("featEmail").value = ""; drawFeatures(r.data); say("featMsg", "Switched off for " + em + ".", "ok");
-  });
-};
 /* ---------- reported videos ---------- */
 function loadVideos(){
   return sb.rpc("admin_videos").then(function(r){
@@ -3540,6 +3542,7 @@ function loadSwitches(){
     });
 
     document.getElementById("switchSec").hidden = false;
+    addFeatSwitches(host);
 
     var changed = (d.switches||[]).filter(function(r){ return r.changed_at; })
       .sort(function(a,b){ return a.changed_at < b.changed_at ? 1 : -1; })[0];
@@ -4365,7 +4368,6 @@ applyTheme(recall(THEME_KEY,null));
         loadReports();
         loadGameFlags();
         loadBudget();
-        loadFeatures();
         loadVideos();
         loadSand();
         loadAsks();
