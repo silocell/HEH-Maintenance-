@@ -642,6 +642,17 @@ body.demo #mainPanel .sec.off{ opacity:.42; pointer-events:none; user-select:non
         <p class="amsg" id="switchMsg"></p>
       </div>
 
+      <div class="sec" id="hwSec" hidden>
+        <p class="sec-h">Homework Chat</p>
+        <div class="arow" style="flex-wrap:wrap;gap:10px;align-items:center">
+          <label>Free messages a day <input type="number" id="hwFree" min="0" max="1000" class="gwhy" style="max-width:90px"></label>
+          <label>Claude Haiku <input type="number" id="hwHaiku" min="0" max="1000" class="gwhy" style="max-width:70px">p</label>
+          <label>Claude Sonnet <input type="number" id="hwSonnet" min="0" max="1000" class="gwhy" style="max-width:70px">p</label>
+          <button type="button" class="abtn" id="hwSave">Save</button>
+        </div>
+        <p class="amsg" id="hwMsg">Pupils with the Explainer on can use it. Switch it off for everyone or one person with the Homework Chat buttons above and on each person's row.</p>
+      </div>
+
       <div class="sec">
         <p class="sec-h">Accounts</p>
         <div class="stats" id="stats"></div>
@@ -3154,7 +3165,7 @@ setInterval(function(){ if(!document.hidden && typeof canSync === "function" && 
 /* ---------- Shop, Game Maker and footer: the same kind of switches as the explainer ----------
    One button each in the Switches row for everyone, and one button each on
    every person's row. Admins always keep all three. */
-var FEATS = [["shop","Shop"],["gamemaker","Game Maker"],["footer","Footer"]];
+var FEATS = [["shop","Shop"],["gamemaker","Game Maker"],["footer","Footer"],["hwchat","Homework Chat"]];
 function getFeat(){
   return sb.rpc("admin_features").then(function(r){ return r.error ? null : r.data; }, function(){ return null; });
 }
@@ -3198,6 +3209,22 @@ function featBtn(u, d, key, label){
   });
   return b;
 }
+/* ---------- Homework Chat: the daily limit and the prices ---------- */
+function loadHw(){
+  sb.rpc("admin_hw_get").then(function(r){
+    if(r.error || !r.data) return;   // not on this server yet, or not an admin
+    var d = r.data; document.getElementById("hwSec").hidden = false;
+    document.getElementById("hwFree").value = d.free_per_day; document.getElementById("hwHaiku").value = d.haiku_pence; document.getElementById("hwSonnet").value = d.sonnet_pence;
+    say("hwMsg", "Today: " + d.people_today + " people, " + d.today_free + " free messages, " + d.today_paid + " Claude messages.", "ok");
+  });
+}
+document.getElementById("hwSave").onclick = function(){
+  var n = function(id){ var v = parseInt(document.getElementById(id).value, 10); return isNaN(v) ? null : v; };
+  sb.rpc("admin_hw_set", { free_per_day_: n("hwFree"), haiku: n("hwHaiku"), sonnet: n("hwSonnet") }).then(function(r){
+    if(r.error){ say("hwMsg", r.error.message, "err"); return; }
+    say("hwMsg", "Saved: " + r.data.free_per_day + " free a day, Haiku " + r.data.haiku_pence + "p, Sonnet " + r.data.sonnet_pence + "p.", "ok");
+  });
+};
 /* ---------- reported videos ---------- */
 function loadVideos(){
   return sb.rpc("admin_videos").then(function(r){
@@ -4369,6 +4396,7 @@ applyTheme(recall(THEME_KEY,null));
         loadGameFlags();
         loadBudget();
         loadVideos();
+        loadHw();
         loadSand();
         loadAsks();
         loadShows();
