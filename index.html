@@ -649,6 +649,7 @@ body.demo #mainPanel .sec.off{ opacity:.42; pointer-events:none; user-select:non
           <label>Free messages a day <input type="number" id="hwFree" min="0" max="1000" class="gwhy" style="max-width:90px"></label>
           <label>Claude Haiku <input type="number" id="hwHaiku" min="0" max="1000" class="gwhy" style="max-width:70px">p</label>
           <label>Claude Sonnet <input type="number" id="hwSonnet" min="0" max="1000" class="gwhy" style="max-width:70px">p</label>
+          <label id="hwOpusL" hidden>Claude Opus <input type="number" id="hwOpus" min="0" max="1000" class="gwhy" style="max-width:70px">p</label>
           <button type="button" class="abtn" id="hwSave">Save</button>
         </div>
         <p class="amsg" id="hwMsg">Pupils with the Explainer on can use it. Switch it off for everyone or one person with the Launchpad AI buttons above and on each person's row.</p>
@@ -3216,14 +3217,17 @@ function loadHw(){
     if(r.error || !r.data) return;   // not on this server yet, or not an admin
     var d = r.data; document.getElementById("hwSec").hidden = false;
     document.getElementById("hwFree").value = d.free_per_day; document.getElementById("hwHaiku").value = d.haiku_pence; document.getElementById("hwSonnet").value = d.sonnet_pence;
+    if (d.opus_pence != null) { document.getElementById("hwOpus").value = d.opus_pence; document.getElementById("hwOpusL").hidden = false; }
     say("hwMsg", "Today: " + d.people_today + " people, " + d.today_free + " free messages, " + d.today_paid + " Claude messages.", "ok");
   });
 }
 document.getElementById("hwSave").onclick = function(){
   var n = function(id){ var v = parseInt(document.getElementById(id).value, 10); return isNaN(v) ? null : v; };
-  sb.rpc("admin_hw_set", { free_per_day_: n("hwFree"), haiku: n("hwHaiku"), sonnet: n("hwSonnet") }).then(function(r){
+  var hwArgs = { free_per_day_: n("hwFree"), haiku: n("hwHaiku"), sonnet: n("hwSonnet") };
+  if (!document.getElementById("hwOpusL").hidden) hwArgs.opus = n("hwOpus");   // only once command 17 is on the server
+  sb.rpc("admin_hw_set", hwArgs).then(function(r){
     if(r.error){ say("hwMsg", r.error.message, "err"); return; }
-    say("hwMsg", "Saved: " + r.data.free_per_day + " free a day, Haiku " + r.data.haiku_pence + "p, Sonnet " + r.data.sonnet_pence + "p.", "ok");
+    say("hwMsg", "Saved: " + r.data.free_per_day + " free a day, Haiku " + r.data.haiku_pence + "p, Sonnet " + r.data.sonnet_pence + "p" + (r.data.opus_pence != null ? ", Opus " + r.data.opus_pence + "p" : "") + ".", "ok");
   });
 };
 /* ---------- reported videos ---------- */
