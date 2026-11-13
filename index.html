@@ -676,6 +676,18 @@ body.demo #mainPanel .sec.off{ opacity:.42; pointer-events:none; user-select:non
         <p class="amsg" id="storMsg">Lowering someone's bought storage gives them back 25 Launchpad Pounds for each GB taken away. Their files stay: if they're over their new limit they just can't save anything bigger until they delete some.</p>
       </div>
 
+      <div class="sec" id="upSec" hidden>
+        <p class="sec-h">Shared uploads</p>
+        <div class="arow"><button type="button" class="abtn quiet" id="upLoad">Refresh</button></div>
+        <div class="ascroll" style="margin-top:12px">
+          <table class="atable">
+            <thead><tr><th>File</th><th>Who</th><th>Reports</th><th></th></tr></thead>
+            <tbody id="upRows"></tbody>
+          </table>
+        </div>
+        <p class="amsg" id="upMsg">Every file someone has made a share link for, most reported first. Files aren't checked before they're shared, so look here when someone reports one. Taking one down deletes it for good.</p>
+      </div>
+
       <div class="sec">
         <p class="sec-h">Accounts</p>
         <div class="stats" id="stats"></div>
@@ -3301,6 +3313,43 @@ function loadStorage(){
   });
 }
 document.getElementById("storLoad").onclick = loadStorage;
+/* ---------- shared uploads from My Files: look at them, take them down ---------- */
+function loadUploads(){
+  return sb.rpc("admin_uploads", { lim: 300 }).then(function(r){
+    if (r.error || !r.data) return;   // not on this server yet (command 37), or not an admin
+    document.getElementById("upSec").hidden = false;
+    var list = r.data, tb = document.getElementById("upRows"); tb.textContent = "";
+    var paths = list.map(function(u){ return u.path; });
+    return (paths.length ? sb.storage.from("uploads").createSignedUrls(paths, 3600) : Promise.resolve({ data: [] })).then(function(s){
+      var urls = {}; ((s && s.data) || []).forEach(function(x){ if (x && x.signedUrl) urls[x.path] = x.signedUrl; });
+      list.forEach(function(u){
+        var tr = document.createElement("tr");
+        var f = document.createElement("td");
+        var a = document.createElement(urls[u.path] ? "a" : "b"); a.textContent = u.name;
+        if (urls[u.path]) { a.href = /^(image\/|audio\/|application\/pdf|text\/plain)/.test(u.mime) ? urls[u.path] : urls[u.path] + "&download=" + encodeURIComponent(u.name); a.target = "_blank"; a.rel = "noopener"; }
+        var m = document.createElement("span"); m.className = "gmeta"; m.textContent = gb(u.bytes) + " · shared " + new Date(u.shared_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+        f.appendChild(a); f.appendChild(document.createElement("br")); f.appendChild(m);
+        var w = document.createElement("td"); w.textContent = u.owner || "?";
+        var rp = document.createElement("td"); rp.textContent = u.reports ? u.reports + (u.why ? " - " + u.why : "") : "None";
+        if (u.reports) rp.style.color = "var(--bad, #dc2626)";
+        var act = document.createElement("td"); var b = document.createElement("button"); b.type = "button"; b.className = "abtn quiet"; b.textContent = "Take down";
+        b.onclick = function(){
+          if (b.dataset.sure !== "1") { b.dataset.sure = "1"; b.textContent = "Delete it for good?"; return; }
+          b.disabled = true;
+          sb.rpc("admin_upload_remove", { fid: u.id }).then(function(x){
+            if (x.error) throw x.error;
+            return sb.storage.from("uploads").remove([x.data]);
+          }).then(function(){ say("upMsg", "Took down " + u.name + ".", "ok"); loadUploads(); })
+            .catch(function(e){ b.disabled = false; say("upMsg", e.message || String(e), "err"); });
+        };
+        act.appendChild(b);
+        [f, w, rp, act].forEach(function(td){ tr.appendChild(td); }); tb.appendChild(tr);
+      });
+      if (!list.length) tb.innerHTML = "<tr><td colspan=\"4\" class=\"gmeta\">Nobody has shared an upload yet.</td></tr>";
+    });
+  });
+}
+document.getElementById("upLoad").onclick = loadUploads;
 document.getElementById("storMaxSave").onclick = function(){
   var v = parseInt(document.getElementById("storMax").value, 10); if (isNaN(v)) return;
   sb.rpc("admin_storage_max", { gb: v }).then(function(r){
@@ -4481,6 +4530,7 @@ applyTheme(recall(THEME_KEY,null));
         loadVideos();
         loadHw();
         loadStorage();
+        loadUploads();
         loadSand();
         loadAsks();
         loadShows();
