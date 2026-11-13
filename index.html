@@ -652,28 +652,7 @@ body.demo #mainPanel .sec.off{ opacity:.42; pointer-events:none; user-select:non
           <label id="hwOpusL" hidden>Claude Opus <input type="number" id="hwOpus" min="0" max="1000" class="gwhy" style="max-width:70px">p</label>
           <button type="button" class="abtn" id="hwSave">Save</button>
         </div>
-        <div class="arow" id="hwAllowRow" style="flex-wrap:wrap;gap:10px;align-items:center;margin-top:8px" hidden>
-          <span id="hwInL" hidden><b>✦ Launchpad AI</b> <label><input type="number" id="hwInS" min="0" max="100000" class="gwhy" style="max-width:80px"> a session</label> <label><input type="number" id="hwInW" min="0" max="1000000" class="gwhy" style="max-width:90px"> a week</label> <label>session lasts <input type="number" id="hwInH" min="1" max="168" class="gwhy" style="max-width:60px"> h</label></span>
-          <span id="hwWlL" hidden><b>🔎 HWLAI</b> <label><input type="number" id="hwWlS" min="0" max="100000" class="gwhy" style="max-width:80px"> searches a session</label> <label><input type="number" id="hwWlW" min="0" max="1000000" class="gwhy" style="max-width:90px"> a week</label> <label>session lasts <input type="number" id="hwWlH" min="1" max="168" class="gwhy" style="max-width:60px"> h</label></span>
-          <button type="button" class="abtn" id="hwAllowSave">Save allowances</button>
-        </div>
         <p class="amsg" id="hwMsg">Pupils with the Explainer on can use it. Switch it off for everyone or one person with the Launchpad AI buttons above and on each person's row.</p>
-      </div>
-
-      <div class="sec" id="storSec" hidden>
-        <p class="sec-h">Storage</p>
-        <div class="arow" style="flex-wrap:wrap;gap:10px;align-items:center">
-          <label>Most extra storage anyone can buy <input type="number" id="storMax" min="0" max="100" class="gwhy" style="max-width:70px"> GB</label>
-          <button type="button" class="abtn" id="storMaxSave">Save</button>
-          <button type="button" class="abtn quiet" id="storLoad">Refresh</button>
-        </div>
-        <div class="ascroll" style="margin-top:12px">
-          <table class="atable">
-            <thead><tr><th>Who</th><th>Suite files</th><th>Videos</th><th>Bought</th><th></th></tr></thead>
-            <tbody id="storRows"></tbody>
-          </table>
-        </div>
-        <p class="amsg" id="storMsg">Lowering someone's bought storage gives them back 25 Launchpad Pounds for each GB taken away. Their files stay: if they're over their new limit they just can't save anything bigger until they delete some.</p>
       </div>
 
       <div class="sec">
@@ -3239,9 +3218,6 @@ function loadHw(){
     var d = r.data; document.getElementById("hwSec").hidden = false;
     document.getElementById("hwFree").value = d.free_per_day; document.getElementById("hwHaiku").value = d.haiku_pence; document.getElementById("hwSonnet").value = d.sonnet_pence;
     if (d.opus_pence != null) { document.getElementById("hwOpus").value = d.opus_pence; document.getElementById("hwOpusL").hidden = false; }
-    var g = function(id){ return document.getElementById(id); };
-    if (d.inhouse_session != null) { g("hwInS").value = d.inhouse_session; g("hwInW").value = d.inhouse_week; g("hwInH").value = d.inhouse_hours; g("hwInL").hidden = false; g("hwAllowRow").hidden = false; }
-    if (d.hwlai_session != null) { g("hwWlS").value = d.hwlai_session; g("hwWlW").value = d.hwlai_week; g("hwWlH").value = d.hwlai_hours; g("hwWlL").hidden = false; g("hwAllowRow").hidden = false; }
     say("hwMsg", "Today: " + d.people_today + " people, " + d.today_free + " free messages, " + d.today_paid + " Claude messages.", "ok");
   });
 }
@@ -3252,60 +3228,6 @@ document.getElementById("hwSave").onclick = function(){
   sb.rpc("admin_hw_set", hwArgs).then(function(r){
     if(r.error){ say("hwMsg", r.error.message, "err"); return; }
     say("hwMsg", "Saved: " + r.data.free_per_day + " free a day, Haiku " + r.data.haiku_pence + "p, Sonnet " + r.data.sonnet_pence + "p" + (r.data.opus_pence != null ? ", Opus " + r.data.opus_pence + "p" : "") + ".", "ok");
-  });
-};
-/* Launchpad AI's and HWLAI's own allowances (a session of a few hours, and a week from Monday 5am) */
-document.getElementById("hwAllowSave").onclick = function(){
-  var n = function(id){ var v = parseInt(document.getElementById(id).value, 10); return isNaN(v) ? null : v; };
-  var jobs = [];
-  if (!document.getElementById("hwInL").hidden) jobs.push(sb.rpc("admin_hw_inhouse_set", { session_: n("hwInS"), week_: n("hwInW"), hours_: n("hwInH") }));
-  if (!document.getElementById("hwWlL").hidden) jobs.push(sb.rpc("admin_hw_hwlai_set", { session_: n("hwWlS"), week_: n("hwWlW"), hours_: n("hwWlH") }));
-  Promise.all(jobs).then(function(rs){
-    var bad = rs.filter(function(r){ return r.error; })[0];
-    if (bad) { say("hwMsg", bad.error.message, "err"); return; }
-    var d = rs[rs.length - 1].data || {};
-    say("hwMsg", "Saved. Launchpad AI: " + d.inhouse_session + " a session, " + d.inhouse_week + " a week. HWLAI: " + d.hwlai_session + " searches a session, " + d.hwlai_week + " a week.", "ok");
-  });
-};
-/* ---------- storage: who uses the most, and lowering bought storage ---------- */
-function gb(n){ n = Number(n) || 0; return n >= 1073741824 ? (n / 1073741824).toFixed(1) + " GB" : n >= 1048576 ? Math.round(n / 1048576) + " MB" : Math.max(0, Math.round(n / 1024)) + " KB"; }
-function loadStorage(){
-  return sb.rpc("admin_storage_list").then(function(r){
-    if (r.error || !r.data) return;   // not on this server yet (command 36), or not an admin
-    var d = r.data, sec = document.getElementById("storSec"); sec.hidden = false;
-    document.getElementById("storMax").value = d.extra_max;
-    var tb = document.getElementById("storRows"); tb.textContent = "";
-    (d.people || []).forEach(function(p){
-      var tr = document.createElement("tr");
-      var who = document.createElement("td"); who.innerHTML = "<b></b><br><span class=\"gmeta\"></span>"; who.querySelector("b").textContent = p.name || "?"; who.querySelector("span").textContent = p.email || "";
-      var f = document.createElement("td"); f.className = "num"; f.textContent = gb(p.used) + " of " + gb(p.limit);
-      if (p.used > p.limit) f.style.color = "var(--bad, #dc2626)";
-      var v = document.createElement("td"); v.className = "num"; v.textContent = gb(p.videos);
-      var bt = document.createElement("td"); var inp = document.createElement("input"); inp.type = "number"; inp.min = "0"; inp.max = "1000"; inp.value = p.extra_gb; inp.className = "gwhy"; inp.style.maxWidth = "64px"; inp.setAttribute("aria-label", "GB bought by " + (p.name || "this person"));
-      bt.appendChild(inp); bt.appendChild(document.createTextNode(" GB"));
-      var act = document.createElement("td"); var b = document.createElement("button"); b.type = "button"; b.className = "abtn quiet"; b.textContent = "Set";
-      b.onclick = function(){
-        var want = parseInt(inp.value, 10); if (isNaN(want) || want < 0) { say("storMsg", "Type a number of GB (0 or more).", "err"); return; }
-        b.disabled = true;
-        sb.rpc("admin_storage_set", { who: p.id, extra_gb: want, refund: true }).then(function(x){
-          b.disabled = false;
-          if (x.error) { say("storMsg", x.error.message, "err"); return; }
-          say("storMsg", (p.name || p.email) + ": bought storage " + x.data.was_gb + " GB → " + x.data.now_gb + " GB" + (x.data.refunded_pounds ? ", " + x.data.refunded_pounds + " Pounds given back" : "") + ". Limit now " + gb(x.data.limit) + ", using " + gb(x.data.used) + ".", "ok");
-          loadStorage();
-        });
-      };
-      act.appendChild(b);
-      [who, f, v, bt, act].forEach(function(td){ tr.appendChild(td); }); tb.appendChild(tr);
-    });
-    if (!(d.people || []).length) tb.innerHTML = "<tr><td colspan=\"5\" class=\"gmeta\">Nobody is using any storage yet.</td></tr>";
-  });
-}
-document.getElementById("storLoad").onclick = loadStorage;
-document.getElementById("storMaxSave").onclick = function(){
-  var v = parseInt(document.getElementById("storMax").value, 10); if (isNaN(v)) return;
-  sb.rpc("admin_storage_max", { gb: v }).then(function(r){
-    if (r.error) { say("storMsg", r.error.message, "err"); return; }
-    say("storMsg", "Saved: nobody can buy more than " + r.data.extra_max + " GB extra now. People who already have more keep it until you lower it below.", "ok");
   });
 };
 /* ---------- reported videos ---------- */
@@ -4480,7 +4402,6 @@ applyTheme(recall(THEME_KEY,null));
         loadBudget();
         loadVideos();
         loadHw();
-        loadStorage();
         loadSand();
         loadAsks();
         loadShows();
