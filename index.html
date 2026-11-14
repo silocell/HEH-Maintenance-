@@ -426,6 +426,27 @@ body.demo #mainPanel .sec.off{ opacity:.42; pointer-events:none; user-select:non
 .catfoot .what{flex:1;min-width:0;font-size:.92rem}
 .catfoot .what b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .catempty{grid-column:1/-1;text-align:center;opacity:.7;padding:40px 0}
+/* ---------- nothing may push the page wider than the screen ---------- */
+#mainPanel, #mainPanel .sec{min-width:0;max-width:100%}
+#mainPanel select, #mainPanel input, #mainPanel textarea{max-width:100%}
+#mainPanel label{min-width:0;max-width:100%}
+.atable-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}
+@media (max-width:700px){
+  html, body{overflow-x:clip}
+  .atable{display:block;overflow-x:auto;max-width:100%;-webkit-overflow-scrolling:touch}
+  #qMode{width:100%}
+  .shell{padding:14px 10px 60px}
+  .panel{padding-left:14px;padding-right:14px}
+  .gseg{display:flex;width:100%}
+  .gseg button{flex:1 1 0;padding:8px 6px;min-width:0}
+  .gwhy{flex:1 1 100%}
+}
+@media (max-width:360px){
+  body{font-size:15px}
+  .shell{padding:10px 6px 50px}
+  .panel{padding-left:10px;padding-right:10px;border-radius:16px !important}
+  .gseg button{font-size:.76rem}
+}
 /* ---------- PHONES: one section at a time, folded account cards ---------- */
 .secbar{display:none}
 .usearch{width:100%;height:40px;border:1px solid var(--rule);border-radius:12px;padding:0 12px;margin:0 0 10px;font:inherit;background:var(--card,#fff);color:inherit}
@@ -4620,18 +4641,18 @@ applyTheme(recall(THEME_KEY,null));
   /* fold account cards on phones: tap the email line to open one */
   var rows = document.getElementById("userRows");
   if(rows){
-    rows.addEventListener("click", function(e){
+    panel.addEventListener("click", function(e){
       var top = e.target.closest(".acct-top"); if(!top || !phone.matches) return;
       top.parentNode.classList.toggle("open");
     });
     new MutationObserver(function(){
-      rows.querySelectorAll(".acct-top:not(.hasmore)").forEach(function(top){
+      panel.querySelectorAll(".acct-top:not(.hasmore)").forEach(function(top){
         top.classList.add("hasmore");
         var m = document.createElement("span"); m.className = "acct-more"; m.textContent = "▾"; m.setAttribute("aria-hidden", "true");
         top.appendChild(m);
       });
       find();
-    }).observe(rows, { childList: true });
+    }).observe(panel, { childList: true, subtree: true });
   }
   /* find someone */
   var box = document.getElementById("userFind");
