@@ -426,6 +426,26 @@ body.demo #mainPanel .sec.off{ opacity:.42; pointer-events:none; user-select:non
 .catfoot .what{flex:1;min-width:0;font-size:.92rem}
 .catfoot .what b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .catempty{grid-column:1/-1;text-align:center;opacity:.7;padding:40px 0}
+/* ---------- PHONES: one section at a time, folded account cards ---------- */
+.secbar{display:none}
+.usearch{width:100%;height:40px;border:1px solid var(--rule);border-radius:12px;padding:0 12px;margin:0 0 10px;font:inherit;background:var(--card,#fff);color:inherit}
+.acct.nomatch{display:none}
+.acct-more{display:none}
+@media (max-width:700px){
+  .secbar{display:flex;gap:6px;position:sticky;top:0;z-index:20;overflow-x:auto;scrollbar-width:none;margin:-4px -4px 14px;padding:8px 4px;
+    background:color-mix(in srgb,var(--card,#fff) 92%,transparent);border-bottom:1px solid var(--rule)}
+  .secbar::-webkit-scrollbar{display:none}
+  .secbar button{flex:none;border:1px solid var(--rule);background:transparent;color:inherit;border-radius:999px;padding:7px 12px;font-family:inherit;font-weight:600;font-size:.84rem;white-space:nowrap;position:relative}
+  .secbar button.on{background:var(--accent,#4f46e5);border-color:transparent;color:#fff}
+  .secbar button.dot::after{content:"";position:absolute;top:3px;right:3px;width:8px;height:8px;border-radius:50%;background:#ef4444}
+  body.onesec .sec:not(.cur){display:none}
+  body.onesec .sec.cur{padding-top:0;margin-top:0;border-top:none}
+  /* account cards fold down to the email line until tapped */
+  .acct:not(.open) > :not(.acct-top){display:none}
+  .acct .acct-top{cursor:pointer}
+  .acct .acct-more{display:inline;margin-left:auto;color:var(--ink-faint);font-size:.8rem}
+  .acct.open .acct-more{transform:rotate(180deg)}
+}
 </style>
 <link rel="stylesheet" href="https://civilinitiatives.org/glass.css?b=20261102a">
 <link rel="stylesheet" href="https://civilinitiatives.org/polish.css?b=20261021194235">
@@ -691,6 +711,7 @@ body.demo #mainPanel .sec.off{ opacity:.42; pointer-events:none; user-select:non
       <div class="sec">
         <p class="sec-h">Accounts</p>
         <div class="stats" id="stats"></div>
+        <input type="search" class="usearch" id="userFind" placeholder="Find someone by email or name" autocomplete="off" aria-label="Find someone">
         <div id="userRows"></div>
         <p class="amsg" id="usersMsg"></p>
         <div class="arow" style="margin-top:14px">
@@ -4538,5 +4559,93 @@ applyTheme(recall(THEME_KEY,null));
       }
     });
   }).catch(function(){ show("deadEnd"); });
+})();
+</script>
+<script>
+/* Phones: the admin page is very long. A row of section names along the top shows one section
+   at a time (a red dot means something is waiting there), and account cards fold to one line. */
+(function(){
+  var panel = document.getElementById("mainPanel"); if(!panel) return;
+  var phone = window.matchMedia("(max-width:700px)");
+  var bar = document.createElement("nav"); bar.className = "secbar"; bar.setAttribute("aria-label", "Sections");
+  panel.insertBefore(bar, panel.firstChild);
+  var KEY = "hl.maint.sec", cur = null;
+  try{ cur = localStorage.getItem(KEY); }catch(e){}
+  function secs(){
+    var out = [];
+    panel.querySelectorAll(".sec").forEach(function(sec, i){
+      if(sec.hidden || sec.closest("[hidden]") !== null && sec.closest("[hidden]") !== sec) return;
+      var h = sec.querySelector(".sec-h"); if(!h) return;
+      if(!sec.id) sec.id = "sec_" + i;
+      var name = ""; h.childNodes.forEach(function(n){ if(n.nodeType === 3) name += n.textContent; });
+      name = name.replace(/\(.*?\)/g, "").trim() || h.textContent.trim();
+      var badge = sec.querySelector(".wbadge:not([hidden])");
+      out.push({ sec: sec, name: name, dot: !!(badge && (badge.textContent || "").trim() && badge.textContent.trim() !== "0") });
+    });
+    return out;
+  }
+  function pick(id){
+    cur = id; try{ localStorage.setItem(KEY, id); }catch(e){}
+    apply();
+    window.scrollTo({ top: panel.getBoundingClientRect().top + scrollY - 8 });
+  }
+  var last = "";
+  function apply(){
+    var list = secs();
+    if(!phone.matches || !list.length){ document.body.classList.remove("onesec"); bar.hidden = true; return; }
+    bar.hidden = false; document.body.classList.add("onesec");
+    if(!list.some(function(x){ return x.sec.id === cur; })){
+      var waiting = list.filter(function(x){ return x.dot; })[0];
+      cur = (waiting || list[0]).sec.id;
+    }
+    var sig = list.map(function(x){ return x.sec.id + (x.dot ? "*" : "") + (x.sec.id === cur ? "!" : ""); }).join("|");
+    if(sig === last) return; last = sig;
+    bar.textContent = "";
+    list.forEach(function(x){
+      x.sec.classList.toggle("cur", x.sec.id === cur);
+      var b = document.createElement("button"); b.type = "button"; b.textContent = x.name;
+      if(x.dot) b.classList.add("dot");
+      if(x.sec.id === cur){ b.classList.add("on"); b.setAttribute("aria-current", "true"); }
+      b.onclick = function(){ pick(x.sec.id); };
+      bar.appendChild(b);
+    });
+    var on = bar.querySelector(".on"); if(on) bar.scrollLeft = on.offsetLeft - 40;
+  }
+  var t = 0;
+  new MutationObserver(function(){ clearTimeout(t); t = setTimeout(apply, 200); })
+    .observe(panel, { attributes: true, attributeFilter: ["hidden"], subtree: true, childList: true, characterData: true });
+  if(phone.addEventListener) phone.addEventListener("change", function(){ last = ""; apply(); });
+  apply();
+
+  /* fold account cards on phones: tap the email line to open one */
+  var rows = document.getElementById("userRows");
+  if(rows){
+    rows.addEventListener("click", function(e){
+      var top = e.target.closest(".acct-top"); if(!top || !phone.matches) return;
+      top.parentNode.classList.toggle("open");
+    });
+    new MutationObserver(function(){
+      rows.querySelectorAll(".acct-top:not(.hasmore)").forEach(function(top){
+        top.classList.add("hasmore");
+        var m = document.createElement("span"); m.className = "acct-more"; m.textContent = "▾"; m.setAttribute("aria-hidden", "true");
+        top.appendChild(m);
+      });
+      find();
+    }).observe(rows, { childList: true });
+  }
+  /* find someone */
+  var box = document.getElementById("userFind");
+  function find(){
+    if(!box || !rows) return;
+    var q = box.value.trim().toLowerCase();
+    rows.querySelectorAll(".acct").forEach(function(c){
+      var hay = c.textContent.toLowerCase();
+      c.querySelectorAll("input").forEach(function(i){ hay += " " + (i.value || "").toLowerCase(); });
+      var hit = !q || hay.indexOf(q) >= 0;
+      c.classList.toggle("nomatch", !hit);
+      if(q && hit && phone.matches) c.classList.add("open");
+    });
+  }
+  if(box) box.addEventListener("input", find);
 })();
 </script>
