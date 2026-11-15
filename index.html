@@ -647,7 +647,7 @@ body.demo #mainPanel .sec.off{ opacity:.42; pointer-events:none; user-select:non
         <div class="arow" style="margin-top:8px">
           <button type="button" class="abtn quiet" id="gamesLoad">Refresh</button>
         </div>
-        <p class="amsg" id="gamesMsg">Learning only = the learning games, without the fun games or the doodles. New accounts start with games off. Level Up is never switched off here.</p>
+        <p class="amsg" id="gamesMsg">Learning only = HWL Learning, without the fun games or the doodles. New accounts start with games off. Level Up is never switched off here.</p>
       </div>
 
       <div class="sec" id="pointsSec" hidden>
@@ -2304,7 +2304,7 @@ function loadGames(){
     });
     var all = people.filter(function(u){ return u.level === "all" && !u.timedOut; }).length;
     var learn = people.filter(function(u){ return u.level === "learning" && !u.timedOut; }).length;
-    say("gamesMsg", all + " with all games, " + learn + " with learning games only, out of " + people.length + ".");
+    say("gamesMsg", all + " with all games, " + learn + " with HWL Learning only, out of " + people.length + ".");
   }).catch(function(e){ say("gamesMsg", e.message, "err"); });
 }
 document.getElementById("gamesLoad").addEventListener("click", loadGames);
@@ -4495,7 +4495,7 @@ function newChecks(out){
     timed("Games lock", function(){
       return rpc("my_games").then(function(d){
         d = d || {};
-        return { detail:"my_games() answers: " + (d.allowed ? (d.level === "learning" ? "learning games only" : "all games") : "games off") + " for this account." };
+        return { detail:"my_games() answers: " + (d.allowed ? (d.level === "learning" ? "HWL Learning only" : "all games") : "games off") + " for this account." };
       });
     }),
     ownerOnly("Games switches", function(){
