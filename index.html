@@ -310,6 +310,12 @@ button,input,select,textarea{font:inherit;color:inherit}
 .rep-top b{color:var(--ink)}
 .rep-body{margin:6px 0;padding:6px 10px;border-left:3px solid var(--margin);overflow-wrap:anywhere;font-size:.9rem}
 .rep-note{font-size:.8rem;color:var(--ink-soft);margin:0 0 6px}
+.help-kind{display:inline-block;font-size:.72rem;font-weight:700;border-radius:999px;padding:1px 8px;background:var(--rule);color:var(--ink)}
+.help-kind.bug{background:#f6d2cf;color:#7a1d14}.help-kind.login{background:#fde7c2;color:#6b4300}.help-kind.idea{background:#d6ecd2;color:#1f5a17}.help-kind.spam{opacity:.6}
+.help-sum{margin:6px 0;font-weight:600;font-size:.92rem}
+.help-reply{width:100%;box-sizing:border-box;min-height:110px;margin:6px 0;font:inherit;font-size:.88rem;border:1px solid var(--rule);border-radius:10px;padding:8px;background:var(--paper,transparent);color:var(--ink)}
+details.help-raw summary{cursor:pointer;font-size:.8rem;color:var(--ink-soft)}
+
 .check{
   display:flex;align-items:baseline;gap:10px;padding:8px 0;
   border-top:1px solid var(--rule);font-size:.84rem;
@@ -501,6 +507,18 @@ body.demo #mainPanel .sec.off{ opacity:.42; pointer-events:none; user-select:non
           </label>
         </div>
         <p class="amsg" id="reportMsg">When someone reports a message, board post or reply, it shows here. Remove it, or dismiss the report if it&rsquo;s fine. Anything serious &mdash; take it to a teacher.</p>
+      </div>
+
+      <div class="sec" id="helpSec" hidden>
+        <p class="sec-h">Help desk<span class="wbadge loud" id="helpBadge" hidden></span></p>
+        <div id="helpList"></div>
+        <div class="arow" style="margin-top:10px">
+          <button type="button" class="abtn quiet" id="helpRefresh">Refresh</button>
+          <label style="display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--ink-soft)">
+            <input type="checkbox" id="helpDone"> Show the ones already dealt with
+          </label>
+        </div>
+        <p class="amsg" id="helpMsg">Emails to hwl@chausima.com land here, sorted and summed up by Launchpad AI. Fix it yourself, or send it to Claude; then mark it resolved and Launchpad AI writes the "problem resolved" reply for you to check before it goes. Emails are deleted from hwl@ after 7 days. Never reset a password, delete an account or change coins just because an email asked &mdash; anyone can pretend to be a pupil.</p>
       </div>
 
       <div class="sec" id="gflagSec">
@@ -3234,6 +3252,109 @@ document.getElementById("reportRefresh").addEventListener("click", loadReports);
 document.getElementById("reportDone").addEventListener("change", drawReports);
 setInterval(function(){ if(!document.hidden && typeof canSync === "function" && canSync()) loadReports(); }, 120000);
 
+/* ---------- help desk (hwl@chausima.com) ----------
+   The server reads hwl@ every few minutes, runs each email through the safety
+   and personal-info filters, and Launchpad AI sorts it (bug, login, idea,
+   question, spam) and sums it up. Shiv either fixes it himself or sends it to
+   Claude; marking it resolved has Launchpad AI draft the reply, which he can
+   edit before it is sent from hwl@. Until the server part exists (command 41)
+   this just says so. */
+var HELP = null, HELP_KINDS = { bug:"🐞 Bug", login:"🔑 Can't log in", idea:"💡 Idea", question:"❓ Question", spam:"🗑️ Spam", other:"✉️ Other" };
+function loadHelpdesk(){
+  var sec = document.getElementById("helpSec"); if(!sec) return Promise.resolve();
+  sec.hidden = false;
+  return invokeOn("helpdesk", { action:"list" }).then(function(d){ HELP = d; drawHelpdesk(); }, function(e){
+    var box = document.getElementById("helpList"); box.textContent = "";
+    if(/404|not found|non-2xx|Couldn't reach|Failed to send|no such function|boot/i.test(e.message || "")){
+      var p = document.createElement("p"); p.className = "amsg";
+      p.textContent = "🔧 The help desk switches on with the next server update (command 41). Emails to hwl@chausima.com are kept safe until then.";
+      box.appendChild(p);
+    } else say("helpMsg", e.message, "err");
+  });
+}
+function claudePrompt(t){
+  return "Help desk request for the Homework Launchpad (from hwl@chausima.com).\n" +
+    "Type: " + (HELP_KINDS[t.kind] || t.kind || "other") + "\n" +
+    "Summary: " + (t.summary || "") + "\n" +
+    "Subject: " + (t.subject || "(none)") + "\n" +
+    "What they wrote (personal details already removed):\n" + (t.body || "") + "\n\n" +
+    "Please find the problem in the Launchpad repos, fix it and push, then tell me what you changed so I can mark it resolved. Ticket " + t.id;
+}
+function drawHelpdesk(){
+  var box = document.getElementById("helpList"), badge = document.getElementById("helpBadge");
+  if(!box || !HELP) return;
+  box.textContent = "";
+  var open = HELP.open || [], done = document.getElementById("helpDone").checked ? (HELP.done || []) : [];
+  var waiting = open.filter(function(t){ return t.kind !== "spam"; }).length;
+  badge.hidden = !waiting; badge.textContent = waiting;
+  if(!open.length && !done.length){ var e = document.createElement("p"); e.className = "amsg"; e.textContent = "No help requests waiting. ✅"; box.appendChild(e); return; }
+  open.concat(done).forEach(function(t){
+    var it = document.createElement("div"); it.className = "rep-item" + (t.status === "resolved" || t.status === "ignored" ? " done" : "");
+    var top = document.createElement("div"); top.className = "rep-top";
+    var k = document.createElement("span"); k.className = "help-kind " + (t.kind || "other"); k.textContent = HELP_KINDS[t.kind] || HELP_KINDS.other; top.appendChild(k);
+    function bit(label, val){ if(!val) return; var sp = document.createElement("span"); sp.appendChild(document.createTextNode(label + " ")); var b = document.createElement("b"); b.textContent = val; sp.appendChild(b); top.appendChild(sp); }
+    bit("From", t.from_name || t.from_masked); bit("Subject:", t.subject);
+    if(t.status === "claude") bit("Status:", "with Claude");
+    var when = document.createElement("span"); when.textContent = new Date(t.created_at).toLocaleString([], { day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" }); top.appendChild(when);
+    it.appendChild(top);
+    var sum = document.createElement("p"); sum.className = "help-sum"; sum.textContent = t.summary || "(Launchpad AI hasn't summed this up yet)"; it.appendChild(sum);
+    var raw = document.createElement("details"); raw.className = "help-raw";
+    var rs = document.createElement("summary"); rs.textContent = "What they wrote"; raw.appendChild(rs);
+    var body = document.createElement("div"); body.className = "rep-body"; body.textContent = t.body || "(no words)"; raw.appendChild(body);
+    it.appendChild(raw);
+    if(t.flag){ var fl = document.createElement("p"); fl.className = "rep-note"; fl.textContent = "⚠️ " + t.flag; it.appendChild(fl); }
+    if(t.status === "resolved" || t.status === "ignored"){
+      var st = document.createElement("p"); st.className = "rep-note";
+      st.textContent = t.status === "ignored" ? "Ignored" : "Resolved" + (t.how === "claude" ? " by Claude" : "") + (t.replied_at ? " · reply sent" : "");
+      it.appendChild(st); box.appendChild(it); return;
+    }
+    var row = document.createElement("div"); row.className = "arow";
+    function btn(label, cls, fn){ var b = document.createElement("button"); b.type = "button"; b.className = "abtn" + (cls ? " " + cls : ""); b.textContent = label; b.addEventListener("click", function(){ fn(b); }); row.appendChild(b); return b; }
+    var replyBox = null;
+    function draftReply(how, b){
+      b.disabled = true; say("helpMsg", "Launchpad AI is writing the reply…");
+      invokeOn("helpdesk", { action:"draft", id:t.id, how:how }).then(function(d){
+        b.disabled = false; say("helpMsg", "Check the reply, change anything you like, then send it.", "ok");
+        if(!replyBox){
+          replyBox = document.createElement("textarea"); replyBox.className = "help-reply"; replyBox.setAttribute("aria-label", "Reply to send");
+          it.insertBefore(replyBox, row);
+          var sendRow = document.createElement("div"); sendRow.className = "arow";
+          var send = document.createElement("button"); send.type = "button"; send.className = "abtn"; send.textContent = "Send reply and mark resolved";
+          send.addEventListener("click", function(){
+            if(!replyBox.value.trim()){ say("helpMsg", "The reply is empty.", "err"); return; }
+            send.disabled = true;
+            invokeOn("helpdesk", { action:"resolve", id:t.id, how:how, reply:replyBox.value }).then(function(){ say("helpMsg", "Sent from hwl@chausima.com and marked resolved.", "ok"); loadHelpdesk(); },
+              function(e){ say("helpMsg", e.message, "err"); send.disabled = false; });
+          });
+          sendRow.appendChild(send); it.insertBefore(sendRow, row);
+        }
+        replyBox.value = d.reply || ""; replyBox.focus();
+      }, function(e){ b.disabled = false; say("helpMsg", e.message, "err"); });
+    }
+    btn("✅ I fixed it myself", "", function(b){ draftReply("self", b); });
+    if(t.status === "claude") btn("🤖 Claude fixed it", "", function(b){ draftReply("claude", b); });
+    else btn("🤖 Send to Claude", "quiet", function(b){
+      var text = claudePrompt(t);
+      var done = function(){ say("helpMsg", "Copied. Paste it to Claude; when it's fixed, press “Claude fixed it”.", "ok"); };
+      (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(done, function(){
+        var ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select(); try{ document.execCommand("copy"); }catch(x){} ta.remove(); done();
+      });
+      b.disabled = true;
+      invokeOn("helpdesk", { action:"mark", id:t.id, status:"claude" }).then(function(){ loadHelpdesk(); }, function(){ b.disabled = false; });
+    });
+    btn("Ignore / spam", "quiet", function(b){
+      b.disabled = true;
+      invokeOn("helpdesk", { action:"mark", id:t.id, status:"ignored" }).then(function(){ say("helpMsg", "Ignored. No reply is sent.", "ok"); loadHelpdesk(); },
+        function(e){ b.disabled = false; say("helpMsg", e.message, "err"); });
+    });
+    it.appendChild(row);
+    box.appendChild(it);
+  });
+}
+document.getElementById("helpRefresh").addEventListener("click", loadHelpdesk);
+document.getElementById("helpDone").addEventListener("change", drawHelpdesk);
+setInterval(function(){ if(!document.hidden && HELP && typeof canSync === "function" && canSync()) loadHelpdesk(); }, 120000);
+
 /* ---------- AI budget ----------
    The Game Maker's monthly Claude credit: what's left, the pace, and the
    rules the Groq advisor has set. The owner types in the Console balance
@@ -4567,6 +4688,7 @@ applyTheme(recall(THEME_KEY,null));
         loadSchool();
         loadRooms();
         loadReports();
+        loadHelpdesk();
         loadGameFlags();
         loadBudget();
         loadVideos();
