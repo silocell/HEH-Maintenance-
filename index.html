@@ -722,8 +722,8 @@ body.demo #mainPanel .sec.off{ opacity:.42; pointer-events:none; user-select:non
       <div class="sec" id="storSec" hidden>
         <p class="sec-h">Storage</p>
         <div class="arow" style="flex-wrap:wrap;gap:10px;align-items:center">
-          <label>Most extra storage anyone can buy <input type="number" id="storMax" min="0" max="100" class="gwhy" style="max-width:70px"> GB</label>
-          <button type="button" class="abtn" id="storMaxSave">Save</button>
+          <span class="amsg" style="margin:0">Buying storage is retired. Everyone shares one 50 GB pool for files.</span>
+          <span hidden><input type="number" id="storMax"><button type="button" id="storMaxSave"></button></span>
           <button type="button" class="abtn quiet" id="storLoad">Refresh</button>
         </div>
         <div class="ascroll" style="margin-top:12px">
