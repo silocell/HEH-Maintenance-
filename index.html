@@ -518,7 +518,7 @@ body.demo #mainPanel .sec.off{ opacity:.42; pointer-events:none; user-select:non
             <input type="checkbox" id="helpDone"> Show the ones already dealt with
           </label>
         </div>
-        <p class="amsg" id="helpMsg">Emails to hwl@chausima.com land here, sorted and summed up by Launchpad AI. Fix it yourself, or send it to Claude; then mark it resolved and Launchpad AI writes the "problem resolved" reply for you to check before it goes. Emails are deleted from hwl@ after 7 days. Never reset a password, delete an account or change coins just because an email asked &mdash; anyone can pretend to be a pupil.</p>
+        <p class="amsg" id="helpMsg">Emails to info@chausima.com land here, sorted and summed up by Launchpad AI. Fix it yourself, or send it to Claude; then mark it resolved and Launchpad AI writes the "problem resolved" reply for you to check before it goes. Emails are deleted from info@ after 7 days. Never reset a password, delete an account or change coins just because an email asked &mdash; anyone can pretend to be a pupil.</p>
       </div>
 
       <div class="sec" id="gflagSec">
@@ -3252,12 +3252,12 @@ document.getElementById("reportRefresh").addEventListener("click", loadReports);
 document.getElementById("reportDone").addEventListener("change", drawReports);
 setInterval(function(){ if(!document.hidden && typeof canSync === "function" && canSync()) loadReports(); }, 120000);
 
-/* ---------- help desk (hwl@chausima.com) ----------
-   The server reads hwl@ every few minutes, runs each email through the safety
+/* ---------- help desk (info@chausima.com) ----------
+   The server reads info@ every few minutes, runs each email through the safety
    and personal-info filters, and Launchpad AI sorts it (bug, login, idea,
    question, spam) and sums it up. Shiv either fixes it himself or sends it to
    Claude; marking it resolved has Launchpad AI draft the reply, which he can
-   edit before it is sent from hwl@. Until the server part exists (command 41)
+   edit before it is sent from info@. Until the server part exists (command 43)
    this just says so. */
 var HELP = null, HELP_KINDS = { bug:"🐞 Bug", login:"🔑 Can't log in", idea:"💡 Idea", question:"❓ Question", spam:"🗑️ Spam", other:"✉️ Other" };
 function loadHelpdesk(){
@@ -3267,13 +3267,13 @@ function loadHelpdesk(){
     var box = document.getElementById("helpList"); box.textContent = "";
     if(/404|not found|non-2xx|Couldn't reach|Failed to send|no such function|boot/i.test(e.message || "")){
       var p = document.createElement("p"); p.className = "amsg";
-      p.textContent = "🔧 The help desk switches on with the next server update (command 41). Emails to hwl@chausima.com are kept safe until then.";
+      p.textContent = "🔧 The help desk switches on with the next server update (command 43). Emails to info@chausima.com are kept safe until then.";
       box.appendChild(p);
     } else say("helpMsg", e.message, "err");
   });
 }
 function claudePrompt(t){
-  return "Help desk request for the Homework Launchpad (from hwl@chausima.com).\n" +
+  return "Help desk request for the Homework Launchpad (from info@chausima.com).\n" +
     "Type: " + (HELP_KINDS[t.kind] || t.kind || "other") + "\n" +
     "Summary: " + (t.summary || "") + "\n" +
     "Subject: " + (t.subject || "(none)") + "\n" +
@@ -3323,7 +3323,7 @@ function drawHelpdesk(){
           send.addEventListener("click", function(){
             if(!replyBox.value.trim()){ say("helpMsg", "The reply is empty.", "err"); return; }
             send.disabled = true;
-            invokeOn("helpdesk", { action:"resolve", id:t.id, how:how, reply:replyBox.value }).then(function(){ say("helpMsg", "Sent from hwl@chausima.com and marked resolved.", "ok"); loadHelpdesk(); },
+            invokeOn("helpdesk", { action:"resolve", id:t.id, how:how, reply:replyBox.value }).then(function(){ say("helpMsg", "Sent from info@chausima.com and marked resolved.", "ok"); loadHelpdesk(); },
               function(e){ say("helpMsg", e.message, "err"); send.disabled = false; });
           });
           sendRow.appendChild(send); it.insertBefore(sendRow, row);
