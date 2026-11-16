@@ -306,6 +306,10 @@ button,input,select,textarea{font:inherit;color:inherit}
 .wbadge.loud{background:var(--margin);color:#fff}
 .rep-item{border:1px solid var(--rule);border-radius:12px;padding:10px 12px;margin:8px 0}
 .rep-item.done{opacity:.6}
+.mlog-stats{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.78rem;color:var(--ink-soft);margin:2px 0 4px}
+.mlog-kind{display:inline-block;font-size:.72rem;font-weight:700;border-radius:999px;padding:1px 8px;background:var(--rule);color:var(--ink)}
+.mlog-kind.in{background:#dbe7fb;color:#173a7a}.mlog-kind.out{background:#d6ecd2;color:#1f5a17}.mlog-kind.wash{background:#efe3fb;color:#4b2177}
+.mlog-st{font-weight:700}.mlog-st.delivered,.mlog-st.sent{color:#1f7a4d}.mlog-st.failed{color:var(--margin)}.mlog-st.sending,.mlog-st.retrying{color:#a06000}
 .rep-top{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:.78rem;color:var(--ink-soft)}
 .rep-top b{color:var(--ink)}
 .rep-body{margin:6px 0;padding:6px 10px;border-left:3px solid var(--margin);overflow-wrap:anywhere;font-size:.9rem}
@@ -518,7 +522,28 @@ body.demo #mainPanel .sec.off{ opacity:.42; pointer-events:none; user-select:non
             <input type="checkbox" id="helpDone"> Show the ones already dealt with
           </label>
         </div>
-        <p class="amsg" id="helpMsg">Emails to info@chausima.com land here, sorted and summed up by Launchpad AI. Fix it yourself, or send it to Claude; then mark it resolved and Launchpad AI writes the "problem resolved" reply for you to check before it goes. Emails are deleted from info@ after 7 days. Never reset a password, delete an account or change coins just because an email asked &mdash; anyone can pretend to be a pupil.</p>
+        <p class="amsg" id="helpMsg">Emails to info@chausima.com land here, sorted and summed up by Launchpad AI. Fix it yourself, or send it to Claude; then mark it resolved and Launchpad AI writes the "problem resolved" reply for you to check before it goes. Each email is copied to the AOL log (see Mail log) and taken out of info@ a few minutes after its ticket is made; the ticket keeps the words for 7 days. Never reset a password, delete an account or change coins just because an email asked &mdash; anyone can pretend to be a pupil.</p>
+      </div>
+
+      <div class="sec" id="mlogSec" hidden>
+        <p class="sec-h">Mail log<span class="wbadge loud" id="mlogBadge" hidden></span></p>
+        <div class="arow" style="margin-bottom:8px">
+          <input type="search" id="mlogFind" class="gwhy" placeholder="Search sender, address or subject" aria-label="Search the mail log" style="flex:1;min-width:180px">
+          <select id="mlogKind" class="gwhy" aria-label="Show">
+            <option value="">Everything</option>
+            <option value="in">Emails received</option>
+            <option value="out">Replies sent</option>
+            <option value="wash">Weekly washes</option>
+            <option value="problem">Not delivered</option>
+          </select>
+        </div>
+        <div id="mlogStats" class="mlog-stats"></div>
+        <div id="mlogList"></div>
+        <div class="arow" style="margin-top:10px">
+          <button type="button" class="abtn quiet" id="mlogRefresh">Refresh</button>
+          <button type="button" class="abtn quiet" id="mlogMore" hidden>Show older</button>
+        </div>
+        <p class="amsg" id="mlogMsg">Every email to info@chausima.com, and every reply sent from it, is copied to hwlsystemslogs@aol.com, then deleted from info@ 3.5 minutes after AOL has it and the help desk has its ticket. Every 7 days info@ is washed clean and a note is left for the help desk AI. Words are shown here for 7 days; the full copy is always in the AOL mailbox.</p>
       </div>
 
       <div class="sec" id="gflagSec">
@@ -3351,6 +3376,75 @@ function drawHelpdesk(){
     box.appendChild(it);
   });
 }
+/* ---------- mail log (info@ -> hwlsystemslogs@aol.com) ----------
+   The logger on the mail server copies every email received at info@ and every
+   reply sent from it to the AOL log mailbox, then deletes the original once AOL
+   has it and the help desk has made its ticket. This lists what it did. Owner
+   and extra admins only (the maillog function checks). */
+var MLOG = { rows: [], total: 0, offset: 0 };
+var MLOG_KIND = { in:"📥 Received", out:"📤 Reply sent", wash:"🧽 Weekly wash" };
+var MLOG_ST = { sending:"sending to AOL…", retrying:"AOL bounced it — retrying", delivered:"in AOL", failed:"not delivered — still in info@", sent:"noted" };
+function loadMailLog(more){
+  var sec = document.getElementById("mlogSec"); if(!sec) return Promise.resolve();
+  sec.hidden = false;
+  var kind = document.getElementById("mlogKind").value;
+  var payload = { action:"list", limit:40, offset: more ? MLOG.offset : 0, q: document.getElementById("mlogFind").value.trim() };
+  if(kind === "problem") payload.status = "problem"; else if(kind) payload.kind = kind;
+  return invokeOn("maillog", payload).then(function(d){
+    MLOG.rows = more ? MLOG.rows.concat(d.rows || []) : (d.rows || []);
+    MLOG.total = d.total || 0; MLOG.offset = MLOG.rows.length; MLOG.lastWash = d.lastWash;
+    drawMailLog();
+  }, function(e){
+    var box = document.getElementById("mlogList"); box.textContent = "";
+    if(/404|not found|non-2xx|Couldn't reach|Failed to send|no such function|boot/i.test(e.message || "")){
+      var p = document.createElement("p"); p.className = "amsg";
+      p.textContent = "🔧 The mail log switches on when the info@ logger is installed on the server.";
+      box.appendChild(p);
+    } else say("mlogMsg", e.message, "err");
+  });
+}
+function drawMailLog(){
+  var box = document.getElementById("mlogList"); if(!box) return;
+  box.textContent = "";
+  var stats = document.getElementById("mlogStats"); stats.textContent = "";
+  function stat(t){ var s = document.createElement("span"); s.textContent = t; stats.appendChild(s); }
+  stat(MLOG.total + (MLOG.total === 1 ? " entry" : " entries"));
+  stat(MLOG.lastWash ? "Last wash: " + new Date(MLOG.lastWash).toLocaleDateString([], { weekday:"short", day:"numeric", month:"short" }) : "No wash yet");
+  var bad = MLOG.rows.filter(function(r){ return r.aol_status === "failed"; }).length;
+  var badge = document.getElementById("mlogBadge"); badge.hidden = !bad; badge.textContent = bad;
+  if(!MLOG.rows.length){ var e = document.createElement("p"); e.className = "amsg"; e.textContent = "Nothing logged yet."; box.appendChild(e); }
+  MLOG.rows.forEach(function(r){
+    var it = document.createElement("div"); it.className = "rep-item";
+    var top = document.createElement("div"); top.className = "rep-top";
+    var k = document.createElement("span"); k.className = "mlog-kind " + r.kind; k.textContent = MLOG_KIND[r.kind] || r.kind; top.appendChild(k);
+    function bit(label, val){ if(!val) return; var sp = document.createElement("span"); sp.appendChild(document.createTextNode(label + " ")); var b = document.createElement("b"); b.textContent = val; sp.appendChild(b); top.appendChild(sp); }
+    if(r.kind === "in") bit("From", r.mail_from); else if(r.kind === "out") bit("To", r.mail_to);
+    var st = document.createElement("span"); st.className = "mlog-st " + r.aol_status; st.textContent = MLOG_ST[r.aol_status] || r.aol_status; top.appendChild(st);
+    if(r.deleted_at){ var dl = document.createElement("span"); dl.textContent = "removed from info@"; top.appendChild(dl); }
+    var when = document.createElement("span"); when.textContent = new Date(r.received_at || r.at).toLocaleString([], { day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" }); top.appendChild(when);
+    it.appendChild(top);
+    var sum = document.createElement("p"); sum.className = "help-sum"; sum.textContent = r.subject || "(no subject)"; it.appendChild(sum);
+    var raw = document.createElement("details"); raw.className = "help-raw";
+    var rs = document.createElement("summary"); rs.textContent = r.kind === "wash" ? "The note left for the help desk" : "What it said"; raw.appendChild(rs);
+    var body = document.createElement("div"); body.className = "rep-body"; body.textContent = "Loading…"; raw.appendChild(body);
+    raw.addEventListener("toggle", function(){
+      if(!raw.open || raw.dataset.got) return; raw.dataset.got = "1";
+      invokeOn("maillog", { action:"body", id:r.id }).then(function(d){
+        body.textContent = d.body || "The words were cleared after 7 days. The full email is in hwlsystemslogs@aol.com — search for: " + (r.subject || "") ;
+      }, function(e){ body.textContent = e.message; raw.dataset.got = ""; });
+    });
+    it.appendChild(raw);
+    box.appendChild(it);
+  });
+  document.getElementById("mlogMore").hidden = MLOG.rows.length >= MLOG.total;
+}
+(function(){
+  var t = 0;
+  document.getElementById("mlogFind").addEventListener("input", function(){ clearTimeout(t); t = setTimeout(function(){ loadMailLog(); }, 350); });
+  document.getElementById("mlogKind").addEventListener("change", function(){ loadMailLog(); });
+  document.getElementById("mlogRefresh").addEventListener("click", function(){ loadMailLog(); });
+  document.getElementById("mlogMore").addEventListener("click", function(){ loadMailLog(true); });
+})();
 document.getElementById("helpRefresh").addEventListener("click", loadHelpdesk);
 document.getElementById("helpDone").addEventListener("change", drawHelpdesk);
 setInterval(function(){ if(!document.hidden && HELP && typeof canSync === "function" && canSync()) loadHelpdesk(); }, 120000);
@@ -4689,6 +4783,7 @@ applyTheme(recall(THEME_KEY,null));
         loadRooms();
         loadReports();
         loadHelpdesk();
+        loadMailLog();
         loadGameFlags();
         loadBudget();
         loadVideos();
