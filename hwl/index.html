@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en-GB" data-sleep="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>HWL Admin</title>
+<link rel="icon" href="https://civilinitiatives.org/favicon.png">
+<style>
+:root{--bg:#0d1220;--panel:#151c2e;--panel2:#1c2540;--line:#28324f;--ink:#e8ecf6;--soft:#9aa6c4;--faint:#6b7799;
+  --blue:#5b8cff;--green:#2fbf71;--amber:#f2a73b;--red:#ef5a5a;--focus:#9bb7ff}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){--bg:#eef1f8;--panel:#fff;--panel2:#f4f6fb;--line:#dde2ee;--ink:#151b2c;--soft:#58627e;--faint:#8a93ab;--focus:#2f5fe0}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+button,input,select{font:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+header{display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--line);background:var(--panel);position:sticky;top:0;z-index:5}
+.mark{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#ff8a3d,#d9408f);display:grid;place-items:center;flex:none}
+header h1{font-size:1.05rem;margin:0;letter-spacing:.01em}
+header .who{margin-left:auto;color:var(--soft);font-size:.85rem;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+nav{display:flex;gap:4px;padding:10px 20px;overflow-x:auto;border-bottom:1px solid var(--line)}
+nav button{border:0;background:none;color:var(--soft);padding:7px 12px;border-radius:999px;cursor:pointer;white-space:nowrap}
+nav button[aria-selected="true"]{background:var(--panel2);color:var(--ink);font-weight:600}
+main{max-width:1060px;margin:0 auto;padding:20px 16px 60px}
+section[hidden]{display:none}
+h2{font-size:1rem;margin:22px 0 10px}
+h2:first-child{margin-top:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
+.card .k{color:var(--soft);font-size:.8rem}
+.card .v{font-size:1.35rem;font-weight:700;margin-top:2px}
+.card .s{color:var(--faint);font-size:.8rem}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:.8rem;padding:2px 9px;border-radius:999px;background:var(--panel2)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--faint)}
+.ok .dot{background:var(--green)} .warn .dot{background:var(--amber)} .bad .dot{background:var(--red)}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn{border:1px solid var(--line);background:var(--panel2);color:var(--ink);padding:8px 14px;border-radius:10px;cursor:pointer}
+.btn:hover{border-color:var(--blue)}
+.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn.danger{color:var(--red);border-color:color-mix(in srgb,var(--red) 45%,var(--line))}
+.btn.danger.solid{background:var(--red);color:#fff;border-color:var(--red)}
+.btn:disabled{opacity:.5;cursor:default}
+.btn[aria-pressed="true"]{border-color:var(--blue);box-shadow:inset 0 0 0 1px var(--blue)}
+input[type=text],input[type=search],input[type=url],select{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:8px 12px;min-width:0}
+table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);font-size:.88rem;vertical-align:middle}
+th{color:var(--soft);font-weight:600;font-size:.78rem;background:var(--panel2)}
+tr:last-child td{border-bottom:0}
+td.act{text-align:right;white-space:nowrap}
+.wrap{overflow-x:auto;border-radius:14px}
+.note{color:var(--soft);font-size:.85rem;margin:6px 0 0}
+pre{background:#0a0e18;color:#cfe0ff;border-radius:12px;padding:12px;max-height:420px;overflow:auto;font-size:.78rem;white-space:pre-wrap;word-break:break-all}
+#toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--line);padding:10px 16px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.35);max-width:calc(100% - 32px)}
+#gate{max-width:420px;margin:12vh auto;text-align:center;padding:0 16px}
+#gate p{color:var(--soft)}
+dialog{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:16px;max-width:420px;width:calc(100% - 32px)}
+dialog::backdrop{background:rgba(5,8,15,.6)}
+dialog input{width:100%;margin:8px 0 14px}
+.mode{font-size:1.1rem;font-weight:700}
+</style>
+</head>
+<body>
+<header>
+  <div class="mark" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 40 40" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round"><path d="M12 9v22M28 9v22M12 20h16"/></svg></div>
+  <h1>HWL Admin</h1>
+  <div class="who" id="who"></div>
+</header>
+
+<div id="gate"><h2>Checking your sign-in…</h2></div>
+
+<div id="app" hidden>
+<nav role="tablist" aria-label="HWL Admin sections">
+  <button role="tab" data-tab="status" aria-selected="true">Status</button>
+  <button role="tab" data-tab="night">Night &amp; modes</button>
+  <button role="tab" data-tab="search">HWL Search</button>
+  <button role="tab" data-tab="services">Services</button>
+  <button role="tab" data-tab="people">People</button>
+  <button role="tab" data-tab="log">Log</button>
+  <button role="tab" data-tab="more">More</button>
+</nav>
+<main>
+  <section id="t-status">
+    <div class="row" style="justify-content:space-between"><h2>Server</h2><button class="btn" data-do="refresh">Refresh</button></div>
+    <div class="grid" id="cards"></div>
+    <h2>Checks</h2>
+    <div class="row" id="checks"></div>
+  </section>
+
+  <section id="t-night" hidden>
+    <h2>Right now</h2>
+    <div class="card"><div class="mode" id="modeNow">…</div>
+      <p class="note">School nights: maintenance 8–11 pm, sleep 11 pm–3 am. Fri/Sat/Sun and holidays: maintenance 12–1 am, sleep 1–3 am. Deep sleep 3–5:40 am every night; back by 6.</p></div>
+    <h2>Tonight</h2>
+    <div class="row"><button class="btn" id="skipBtn" aria-pressed="false">Skip sleep tonight</button>
+      <span class="note" id="skipNote"></span></div>
+    <h2>Switch mode now</h2>
+    <div class="row">
+      <button class="btn" data-mode="tick">Follow the timetable</button>
+      <button class="btn" data-mode="wake">Wake everything</button>
+      <button class="btn" data-mode="maint">Maintenance</button>
+      <button class="btn" data-mode="sleep">Sleep</button>
+      <button class="btn danger" data-mode="deep">Deep sleep</button>
+    </div>
+    <p class="note">Sleep restarts every service; deep sleep stops everything except HWL Search and mail receiving. They keep going until the next change-over time unless you press another button.</p>
+  </section>
+
+  <section id="t-search" hidden>
+    <h2>Crawl speed</h2>
+    <div class="row">
+      <button class="btn" data-speed="gentle">Gentle · 120/min</button>
+      <button class="btn" data-speed="normal">Normal · 400/min</button>
+      <button class="btn" data-speed="fast">Fast · 1000/min</button>
+      <button class="btn" data-speed="max">Max · 1500/min</button>
+    </div>
+    <p class="note">The night timetable sets its own speed at each change-over.</p>
+    <h2>Add a website to HWL Search</h2>
+    <form class="row" id="crawlForm">
+      <input type="url" id="crawlUrl" placeholder="https://www.example.org" required style="flex:1;min-width:220px" aria-label="Website address">
+      <select id="crawlDepth" aria-label="How deep"><option value="1">1 level</option><option value="2" selected>2 levels</option><option value="3">3 levels</option><option value="4">4 levels</option></select>
+      <button class="btn primary">Add</button>
+    </form>
+    <p class="note">Up to 2,000 pages from that website. Only add sites that are OK for school.</p>
+  </section>
+
+  <section id="t-services" hidden>
+    <div class="row" style="justify-content:space-between"><h2>Services</h2><button class="btn" data-do="refresh">Refresh</button></div>
+    <div class="wrap"><table><thead><tr><th>Service</th><th>State</th><th></th></tr></thead><tbody id="svc"></tbody></table></div>
+    <pre id="logs" hidden></pre>
+  </section>
+
+  <section id="t-people" hidden>
+    <div class="row" style="justify-content:space-between"><h2>Launchpad accounts</h2>
+      <input type="search" id="find" placeholder="Find an email" aria-label="Find an account"></div>
+    <div class="wrap"><table><thead><tr><th>Email</th><th>Signs in with</th><th>Last sign-in</th><th>Made</th><th></th></tr></thead><tbody id="ppl"></tbody></table></div>
+    <p class="note">Deleting an account removes the person's sign-in and everything linked to it. It can't be undone. Approving accounts, AI switches and the rest are in the <a href="/" style="color:var(--blue)">maintenance panel</a>.</p>
+  </section>
+
+  <section id="t-log" hidden>
+    <div class="row" style="justify-content:space-between"><h2>Everything HWL Admin has done</h2><button class="btn" data-do="log">Refresh</button></div>
+    <div class="wrap"><table><thead><tr><th>When (UK)</th><th>Who</th><th>What</th><th>Result</th></tr></thead><tbody id="aud"></tbody></table></div>
+    <p class="note">This log can only be added to. Nobody, including HWL Admin, can edit or delete it.</p>
+  </section>
+
+  <section id="t-more" hidden>
+    <h2>Other control panels</h2>
+    <div class="grid">
+      <a class="card" href="/" style="color:inherit;text-decoration:none"><div class="v" style="font-size:1rem">Maintenance panel</div><div class="s">Accounts, approvals, AI switches, shop, storage, videos</div></a>
+      <a class="card" href="https://mail.chausima.com/admin" style="color:inherit;text-decoration:none"><div class="v" style="font-size:1rem">Chausima Mail admin</div><div class="s">Mailboxes, domains, IP bans</div></a>
+      <a class="card" href="https://github.com/silocell/HEH-Launchpad-Apps/tree/hwl-builds" style="color:inherit;text-decoration:none"><div class="v" style="font-size:1rem">HWL Browser builds</div><div class="s">Latest Android, Windows and Linux apps</div></a>
+      <a class="card" href="https://cloud.oracle.com/" style="color:inherit;text-decoration:none"><div class="v" style="font-size:1rem">Oracle Cloud</div><div class="s">The server itself</div></a>
+    </div>
+  </section>
+</main>
+</div>
+
+<dialog id="confirm">
+  <form method="dialog">
+    <h2 style="margin-top:0" id="cfTitle">Delete account?</h2>
+    <p class="note" id="cfText"></p>
+    <label for="cfInput" class="note">Type <b id="cfWant"></b> to confirm</label>
+    <input type="text" id="cfInput" autocomplete="off" spellcheck="false" autocapitalize="none">
+    <div class="row" style="justify-content:flex-end"><button class="btn" value="cancel">Cancel</button><button class="btn danger solid" id="cfGo" value="go" disabled>Delete</button></div>
+  </form>
+</dialog>
+<div id="toast" hidden role="status"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.0/dist/umd/supabase.js"></script>
+<script src="https://civilinitiatives.org/auth-store.js?b=20261026a"></script>
+<script>
+var SUPABASE_URL = "https://hehs-live.duckdns.org";
+var SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzkyODMyMjkwLCJleHAiOjIxMDgxOTIyOTB9.7gFhQa5RBwVtiOPLO7Qf2-aVEbkd5xgpLiN1J06Gybo";
+var API = SUPABASE_URL + "/hwl-admin/api";
+var ADMINS = ["shiv@chausima.com", "shivkforindia@gmail.com"];   // the agent on the server decides; this only picks the screen
+var sb = null, people = [], $ = function (id) { return document.getElementById(id); };
+try { sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true, storage: (window.HEHAuth && window.HEHAuth.storage) || undefined } }); } catch (e) {}
+
+function esc(t) { return String(t == null ? "" : t).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+var toastT;
+function toast(m) { var t = $("toast"); t.textContent = m; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(function () { t.hidden = true; }, 4000); }
+function gate(html) { $("gate").innerHTML = html; $("gate").hidden = false; $("app").hidden = true; }
+
+function call(action, extra) {
+  return sb.auth.getSession().then(function (r) {
+    var s = r.data && r.data.session; if (!s) throw new Error("Sign in again.");
+    var body = Object.assign({ action: action }, extra || {});
+    return fetch(API, { method: "POST", headers: { "content-type": "application/json", Authorization: "Bearer " + s.access_token }, body: JSON.stringify(body) });
+  }).then(function (r) {
+    return r.json().catch(function () { return { error: "The HWL Admin agent isn't answering (is it installed?)." }; }).then(function (j) {
+      if (!r.ok || j.error) throw new Error(j.error || "Something went wrong.");
+      return j;
+    });
+  });
+}
+
+/* ---- status ---- */
+function pill(ok, text) { return '<span class="pill ' + (ok === true ? "ok" : ok === false ? "bad" : "warn") + '"><span class="dot"></span>' + esc(text) + "</span>"; }
+var MODES = { day: "☀️ Normal (day)", maint: "🔧 Maintenance", sleep: "😴 Sleep", deep: "🌙 Deep sleep" };
+function loadStatus() {
+  return call("status").then(function (s) {
+    var m = /now: (\w+)/.exec(s.mode || ""), mode = m ? m[1] : "?";
+    var memUsed = (s.mem_gb - s.mem_free_gb).toFixed(1);
+    $("cards").innerHTML =
+      card("Mode", MODES[mode] || mode, s.skip_tonight ? "sleep skipped tonight" : "") +
+      card("Cores", s.cores, "load " + s.load.join(" · ")) +
+      card("Memory", memUsed + " / " + s.mem_gb + " GB", s.mem_free_gb + " GB free") +
+      card("Data disk", (s.disk_gb - s.disk_free_gb) + " / " + s.disk_gb + " GB", s.disk_free_gb + " GB free") +
+      card("Up for", s.uptime_h < 48 ? s.uptime_h + " h" : Math.round(s.uptime_h / 24) + " days", "since last restart") +
+      card("HWL Search", s.yacy_docs ? Number(s.yacy_docs).toLocaleString("en-GB") : "—", "pages in the index");
+    $("checks").innerHTML = Object.keys(s.checks).map(function (k) { return pill(s.checks[k], k); }).join(" ");
+    $("modeNow").textContent = MODES[mode] || mode;
+    var sk = !!s.skip_tonight; $("skipBtn").setAttribute("aria-pressed", String(sk));
+    $("skipBtn").textContent = sk ? "Sleep is skipped tonight · undo" : "Skip sleep tonight";
+    $("skipNote").textContent = sk ? "Everything stays awake until tomorrow night." : "";
+    $("svc").innerHTML = s.containers.map(function (c) {
+      var up = c.state === "running";
+      return "<tr><td>" + esc(c.name) + "</td><td>" + pill(up ? true : c.state === "exited" ? false : null, c.status) + '</td><td class="act">' +
+        '<button class="btn" data-logs="' + esc(c.name) + '">Logs</button> <button class="btn" data-restart="' + esc(c.name) + '">Restart</button></td></tr>';
+    }).join("");
+  }).catch(function (e) { toast(e.message); });
+}
+function card(k, v, s) { return '<div class="card"><div class="k">' + esc(k) + '</div><div class="v">' + esc(v) + '</div><div class="s">' + esc(s) + "</div></div>"; }
+
+/* ---- people ---- */
+function loadPeople() {
+  return call("users").then(function (j) { people = j.users; drawPeople(); }).catch(function (e) { toast(e.message); });
+}
+function drawPeople() {
+  var q = $("find").value.trim().toLowerCase();
+  $("ppl").innerHTML = people.filter(function (u) { return !q || (u.email || "").toLowerCase().indexOf(q) > -1; }).map(function (u) {
+    var admin = ADMINS.indexOf((u.email || "").toLowerCase()) > -1;
+    return "<tr><td>" + esc(u.email) + "</td><td>" + esc(u.how) + "</td><td>" + esc((u.last || "never").replace("T", " ")) + "</td><td>" + esc(u.created.slice(0, 10)) +
+      '</td><td class="act">' + (admin ? '<span class="note">HWL Admin</span>' : '<button class="btn danger" data-del="' + esc(u.id) + '">Delete</button>') + "</td></tr>";
+  }).join("") || '<tr><td colspan="5" class="note">No accounts match.</td></tr>';
+}
+
+/* ---- log ---- */
+function loadLog() {
+  return call("audit").then(function (j) {
+    $("aud").innerHTML = j.entries.map(function (e) {
+      return "<tr><td>" + esc(e.at) + "</td><td>" + esc(e.who) + "</td><td>" + esc(e.action) + (e.detail ? " · " + esc(e.detail) : "") + "</td><td>" + esc(e.result) + "</td></tr>";
+    }).join("") || '<tr><td colspan="4" class="note">Nothing yet.</td></tr>';
+  }).catch(function (e) { toast(e.message); });
+}
+
+/* ---- typed confirmation ---- */
+function confirmTyped(title, text, want, button) {
+  return new Promise(function (res) {
+    var d = $("confirm"); $("cfTitle").textContent = title; $("cfText").textContent = text; $("cfWant").textContent = want;
+    $("cfGo").textContent = button; $("cfInput").value = ""; $("cfGo").disabled = true;
+    $("cfInput").oninput = function () { $("cfGo").disabled = $("cfInput").value.trim().toLowerCase() !== want.toLowerCase(); };
+    d.onclose = function () { res(d.returnValue === "go" ? $("cfInput").value.trim() : null); };
+    d.returnValue = ""; d.showModal(); $("cfInput").focus();
+  });
+}
+
+/* ---- tabs and buttons ---- */
+var loaded = {};
+function show(tab) {
+  document.querySelectorAll("nav button").forEach(function (b) { b.setAttribute("aria-selected", String(b.dataset.tab === tab)); });
+  document.querySelectorAll("main section").forEach(function (s) { s.hidden = s.id !== "t-" + tab; });
+  if (tab === "people" && !loaded.people) { loaded.people = 1; loadPeople(); }
+  if (tab === "log") loadLog();
+  try { history.replaceState(null, "", "#" + tab); } catch (e) {}
+}
+document.querySelector("nav").addEventListener("click", function (e) { var b = e.target.closest("button[data-tab]"); if (b) show(b.dataset.tab); });
+$("find").addEventListener("input", drawPeople);
+document.addEventListener("click", function (e) {
+  var b = e.target.closest("button"); if (!b || b.closest("nav") || b.closest("dialog")) return;
+  if (b.dataset.do === "refresh") return loadStatus().then(function () { toast("Up to date."); });
+  if (b.dataset.do === "log") return loadLog();
+  if (b.dataset.mode) {
+    var names = { tick: "follow the timetable", wake: "wake everything", maint: "switch to maintenance", sleep: "switch to sleep (restarts every service)", deep: "switch to deep sleep (stops everything except HWL Search and mail receiving)" };
+    if (!confirm("Really " + names[b.dataset.mode] + "?")) return;
+    return call("mode", { to: b.dataset.mode }).then(function () { toast("Started. It can take a few minutes."); setTimeout(loadStatus, 8000); }).catch(function (e) { toast(e.message); });
+  }
+  if (b.id === "skipBtn") {
+    var on = b.getAttribute("aria-pressed") !== "true";
+    return call("skip_tonight", { on: on }).then(function () { toast(on ? "Sleep skipped tonight." : "Tonight follows the timetable again."); loadStatus(); }).catch(function (e) { toast(e.message); });
+  }
+  if (b.dataset.speed) return call("yacy_speed", { level: b.dataset.speed }).then(function (j) { toast("HWL Search crawling at " + j.ppm + " pages a minute."); }).catch(function (e) { toast(e.message); });
+  if (b.dataset.restart) {
+    if (!confirm("Restart " + b.dataset.restart + "? It's offline for a few seconds.")) return;
+    b.disabled = true;
+    return call("restart", { name: b.dataset.restart }).then(function (j) { toast(j.done ? "Restarted." : "It didn't restart. Check its logs."); loadStatus(); }).catch(function (e) { toast(e.message); }).then(function () { b.disabled = false; });
+  }
+  if (b.dataset.logs) {
+    return call("logs", { name: b.dataset.logs }).then(function (j) { var p = $("logs"); p.textContent = "— " + b.dataset.logs + " (last 120 lines) —\n" + j.text; p.hidden = false; p.scrollTop = p.scrollHeight; p.scrollIntoView({ behavior: "smooth" }); }).catch(function (e) { toast(e.message); });
+  }
+  if (b.dataset.del) {
+    var u = people.filter(function (x) { return x.id === b.dataset.del; })[0]; if (!u) return;
+    return confirmTyped("Delete " + u.email + "?", "Their Launchpad account and everything linked to it are removed for good. This can't be undone.", u.email, "Delete for good").then(function (typed) {
+      if (!typed) return;
+      return call("delete_user", { id: u.id, confirm: typed }).then(function (j) { toast("Deleted " + j.deleted + "."); loadPeople(); }).catch(function (e) { toast(e.message); });
+    });
+  }
+});
+$("crawlForm").addEventListener("submit", function (e) {
+  e.preventDefault();
+  call("yacy_crawl", { url: $("crawlUrl").value.trim(), depth: +$("crawlDepth").value }).then(function () { toast("Added. Pages will start appearing in HWL Search."); $("crawlUrl").value = ""; }).catch(function (e) { toast(e.message); });
+});
+
+/* ---- who's here ---- */
+if (!sb) gate("<h2>Can't load</h2><p>Check your connection and refresh.</p>");
+else sb.auth.getSession().then(function (r) {
+  var s = r.data && r.data.session, email = s && s.user && (s.user.email || "").toLowerCase();
+  if (!s) return gate('<h2>Sign in first</h2><p>Sign in on the Homework Launchpad with an HWL Admin account, then come back.</p><p><a class="btn primary" style="text-decoration:none" href="https://civilinitiatives.org/">Go to the Launchpad</a></p>');
+  if (ADMINS.indexOf(email) === -1) return gate("<h2>Not for this account</h2><p>HWL Admin only opens for its two owner accounts.</p>");
+  $("who").textContent = email; $("gate").hidden = true; $("app").hidden = false;
+  loadStatus();
+  var t = (location.hash || "").slice(1); if (t && $("t-" + t)) show(t);
+  setInterval(function () { if (!document.hidden && !$("t-status").hidden) loadStatus(); }, 30000);
+});
+</script>
+</body>
+</html>
