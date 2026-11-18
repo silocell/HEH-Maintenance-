@@ -94,6 +94,20 @@ dialog input{width:100%;margin:8px 0 14px}
 </nav>
 <main>
   <section id="t-status">
+    <h2>Master switches</h2>
+    <div class="card" id="switches">
+      <div class="row" style="justify-content:space-between"><b id="swNow">Checking…</b><span class="note" id="swNote"></span></div>
+      <div class="row" style="margin-top:10px">
+        <input id="lockMsg" maxlength="300" placeholder="Message on the lockdown screen (optional)" aria-label="Message on the lockdown screen" style="flex:1;min-width:200px;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--ink)">
+        <button class="btn danger solid" data-do="lock" id="lockBtn">Lockdown</button>
+      </div>
+      <p class="note">Lockdown shuts the server down straight away: every Launchpad site shows "Lockdown is on", and anything people haven't saved is lost. Suite files are saved first. Sign-in stays on so you can turn it off here.</p>
+      <div class="row" style="margin-top:10px">
+        <button class="btn" data-do="restart-services">Restart all services</button>
+        <button class="btn danger" data-do="restart-server">Restart the whole server</button>
+      </div>
+      <p class="note">While it restarts, every Launchpad site shows a restarting screen and comes back on its own. Services take about 2 minutes; the whole server about 5.</p>
+    </div>
     <div class="row" style="justify-content:space-between"><h2>Server</h2><button class="btn" data-do="refresh">Refresh</button></div>
     <div class="grid" id="cards"></div>
     <h2>Checks</h2>
@@ -218,6 +232,7 @@ function call(action, extra) {
 function pill(ok, text) { return '<span class="pill ' + (ok === true ? "ok" : ok === false ? "bad" : "warn") + '"><span class="dot"></span>' + esc(text) + "</span>"; }
 var MODES = { day: "☀️ Normal (day)", maint: "🔧 Maintenance", sleep: "😴 Sleep", deep: "🌙 Deep sleep" };
 function loadStatus() {
+  loadState();
   return call("status").then(function (s) {
     var m = /now: (\w+)/.exec(s.mode || ""), mode = m ? m[1] : "?";
     var memUsed = (s.mem_gb - s.mem_free_gb).toFixed(1);
@@ -240,6 +255,17 @@ function loadStatus() {
     }).join("");
   }).catch(function (e) { toast(e.message); });
 }
+var hwlState = null;
+function showState(st) {
+  hwlState = st || {};
+  $("swNow").textContent = st.lock ? "🔒 Lockdown is on" : st.restarting ? "↻ Restarting (" + (st.kind === "server" ? "whole server" : "services") + ")" : "✓ Running normally";
+  $("swNote").textContent = st.lock && st.msg ? "Message: " + st.msg : "";
+  $("lockBtn").textContent = st.lock ? "Turn lockdown off" : "Lockdown";
+  $("lockBtn").className = st.lock ? "btn primary" : "btn danger solid";
+  $("lockMsg").hidden = !!st.lock;
+  document.querySelectorAll('[data-do^="restart-"]').forEach(function (x) { x.disabled = !!(st.lock || st.restarting); });
+}
+function loadState() { return call("state").then(function (j) { showState(j.state); }).catch(function () {}); }
 function card(k, v, s) { return '<div class="card"><div class="k">' + esc(k) + '</div><div class="v">' + esc(v) + '</div><div class="s">' + esc(s) + "</div></div>"; }
 
 /* ---- people ---- */
@@ -309,6 +335,21 @@ document.addEventListener("click", function (e) {
   var b = e.target.closest("button"); if (!b || b.closest("nav") || b.closest("dialog")) return;
   if (b.dataset.do === "refresh") return loadStatus().then(function () { toast("Up to date."); });
   if (b.dataset.do === "log") return loadLog();
+  if (b.dataset.do === "lock") {
+    if (hwlState && hwlState.lock) return call("lockdown", { on: false }).then(function (j) { showState(j.state); toast("Lockdown off. Everything is starting again."); }).catch(function (e) { toast(e.message); });
+    return confirmTyped("Turn lockdown on?", "The whole server shuts down now. Every Launchpad site shows \"Lockdown is on\", and anything people are doing that isn't saved is lost. Suite files are saved first. Chausima Mail stops too; mail sent to you waits at the sender and arrives when you turn it off.", "LOCKDOWN", "Lock down now").then(function (t) {
+      if (!t) return;
+      return call("lockdown", { on: true, confirm: t, message: $("lockMsg").value }).then(function (j) { showState(j.state); toast("Lockdown is on."); }).catch(function (e) { toast(e.message); });
+    });
+  }
+  if (b.dataset.do === "restart-services" || b.dataset.do === "restart-server") {
+    var kind = b.dataset.do === "restart-server" ? "server" : "services";
+    return confirmTyped(kind === "server" ? "Restart the whole server?" : "Restart all services?",
+      (kind === "server" ? "HEH-Live reboots in 20 seconds. " : "Every service restarts. ") + "Everyone sees a restarting screen until it's back; anything they haven't saved is lost.", "RESTART", "Restart").then(function (t) {
+      if (!t) return;
+      return call("restart_all", { kind: kind, confirm: t }).then(function (j) { showState(j.state); toast("Restarting…"); }).catch(function (e) { toast(e.message); });
+    });
+  }
   if (b.dataset.mode) {
     var names = { tick: "follow the timetable", wake: "wake everything", maint: "switch to maintenance", sleep: "switch to sleep (restarts every service)", deep: "switch to deep sleep (stops everything except HWL Search and mail receiving)" };
     if (!confirm("Really " + names[b.dataset.mode] + "?")) return;
