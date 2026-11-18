@@ -5,7 +5,14 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <title>HWL Admin</title>
-<link rel="icon" href="https://civilinitiatives.org/favicon.png">
+<link rel="icon" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="HWL Admin">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0d1220">
 <style>
 :root{--bg:#0d1220;--panel:#151c2e;--panel2:#1c2540;--line:#28324f;--ink:#e8ecf6;--soft:#9aa6c4;--faint:#6b7799;
   --blue:#5b8cff;--green:#2fbf71;--amber:#f2a73b;--red:#ef5a5a;--focus:#9bb7ff}
@@ -14,7 +21,7 @@
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 button,input,select{font:inherit}
 :focus-visible{outline:2px solid var(--focus);outline-offset:2px}
-header{display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--line);background:var(--panel);position:sticky;top:0;z-index:5}
+header{display:flex;align-items:center;gap:12px;padding:calc(14px + env(safe-area-inset-top)) 20px 14px;border-bottom:1px solid var(--line);background:var(--panel);position:sticky;top:0;z-index:5}
 .mark{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#ff8a3d,#d9408f);display:grid;place-items:center;flex:none}
 header h1{font-size:1.05rem;margin:0;letter-spacing:.01em}
 header .who{margin-left:auto;color:var(--soft);font-size:.85rem;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -53,6 +60,12 @@ pre{background:#0a0e18;color:#cfe0ff;border-radius:12px;padding:12px;max-height:
 #toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--line);padding:10px 16px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.35);max-width:calc(100% - 32px)}
 #gate{max-width:420px;margin:12vh auto;text-align:center;padding:0 16px}
 #gate p{color:var(--soft)}
+#gate form{text-align:left;margin-top:18px}
+#gate label{display:block;font-size:.85rem;color:var(--soft);margin:12px 0 4px}
+#gate input{width:100%;padding:11px 12px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--ink)}
+#gate .btn{width:100%;margin-top:14px;padding:11px}
+#gate .or{margin:16px 0 0;font-size:.85rem}
+#gErr{color:var(--red);min-height:1.3em;font-size:.9rem}
 dialog{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:16px;max-width:420px;width:calc(100% - 32px)}
 dialog::backdrop{background:rgba(5,8,15,.6)}
 dialog input{width:100%;margin:8px 0 14px}
@@ -299,12 +312,34 @@ $("crawlForm").addEventListener("submit", function (e) {
   call("yacy_crawl", { url: $("crawlUrl").value.trim(), depth: +$("crawlDepth").value }).then(function () { toast("Added. Pages will start appearing in HWL Search."); $("crawlUrl").value = ""; }).catch(function (e) { toast(e.message); });
 });
 
+/* ---- signing in, right here (so the installed app works on its own) ---- */
+function signInScreen() {
+  gate('<h2>HWL Admin</h2><p>Sign in with an HWL Admin account.</p>' +
+    '<form id="gForm" autocomplete="on"><label for="gEm">Chausima address</label><input id="gEm" type="text" autocomplete="username" placeholder="shiv@chausima.com" autocapitalize="none" spellcheck="false" required>' +
+    '<label for="gPw">Password</label><input id="gPw" type="password" autocomplete="current-password" required>' +
+    '<button class="btn primary" id="gGo">Sign in with Chausima</button><p id="gErr" role="alert"></p></form>' +
+    '<p class="or">or</p><button class="btn" id="gGoogle">Sign in with Google</button>');
+  $("gGoogle").onclick = function () { sb.auth.signInWithOAuth({ provider: "google", options: { redirectTo: location.origin + location.pathname } }); };
+  $("gForm").onsubmit = function (e) {
+    e.preventDefault(); var go = $("gGo"); go.disabled = true; go.textContent = "Signing in…"; $("gErr").textContent = "";
+    function fail(m) { $("gErr").textContent = m; go.disabled = false; go.textContent = "Sign in with Chausima"; $("gPw").value = ""; }
+    fetch(SUPABASE_URL + "/functions/v1/chausima-login", { method: "POST", headers: { "content-type": "application/json", apikey: SUPABASE_KEY, Authorization: "Bearer " + SUPABASE_KEY },
+      body: JSON.stringify({ email: $("gEm").value.trim(), password: $("gPw").value }) })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (!j.ok) return fail(j.reason || "Couldn't sign in.");
+        return sb.auth.verifyOtp({ token_hash: j.token_hash, type: "email" }).then(function (r) { if (r.error) return fail("Couldn't finish signing in. Try again."); location.reload(); });
+      }).catch(function () { fail("Can't reach the server. Check your connection."); });
+  };
+}
+if ("serviceWorker" in navigator) { try { navigator.serviceWorker.register("sw.js"); } catch (e) {} }
+
 /* ---- who's here ---- */
 if (!sb) gate("<h2>Can't load</h2><p>Check your connection and refresh.</p>");
 else sb.auth.getSession().then(function (r) {
   var s = r.data && r.data.session, email = s && s.user && (s.user.email || "").toLowerCase();
-  if (!s) return gate('<h2>Sign in first</h2><p>Sign in on the Homework Launchpad with an HWL Admin account, then come back.</p><p><a class="btn primary" style="text-decoration:none" href="https://civilinitiatives.org/">Go to the Launchpad</a></p>');
-  if (ADMINS.indexOf(email) === -1) return gate("<h2>Not for this account</h2><p>HWL Admin only opens for its two owner accounts.</p>");
+  if (!s) return signInScreen();
+  if (ADMINS.indexOf(email) === -1) return gate('<h2>Not for this account</h2><p>HWL Admin only opens for its two owner accounts.</p><button class="btn" onclick="sb.auth.signOut().then(function(){location.reload()})">Use another account</button>');
   $("who").textContent = email; $("gate").hidden = true; $("app").hidden = false;
   loadStatus();
   var t = (location.hash || "").slice(1); if (t && $("t-" + t)) show(t);
