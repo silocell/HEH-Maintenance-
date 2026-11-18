@@ -88,6 +88,7 @@ dialog input{width:100%;margin:8px 0 14px}
   <button role="tab" data-tab="search">HWL Search</button>
   <button role="tab" data-tab="services">Services</button>
   <button role="tab" data-tab="people">People</button>
+  <button role="tab" data-tab="chausima">Chausima</button>
   <button role="tab" data-tab="log">Log</button>
   <button role="tab" data-tab="more">More</button>
 </nav>
@@ -146,6 +147,14 @@ dialog input{width:100%;margin:8px 0 14px}
       <input type="search" id="find" placeholder="Find an email" aria-label="Find an account"></div>
     <div class="wrap"><table><thead><tr><th>Email</th><th>Signs in with</th><th>Last sign-in</th><th>Made</th><th></th></tr></thead><tbody id="ppl"></tbody></table></div>
     <p class="note">Deleting an account removes the person's sign-in and everything linked to it. It can't be undone. Approving accounts, AI switches and the rest are in the <a href="/" style="color:var(--blue)">maintenance panel</a>.</p>
+  </section>
+
+  <section id="t-chausima" hidden>
+    <div class="row" style="justify-content:space-between"><h2>Chausima Accounts</h2>
+      <input type="search" id="findChz" placeholder="Find a username or name" aria-label="Find a Chausima account"></div>
+    <div class="grid" id="chzCards" style="margin-bottom:12px"></div>
+    <div class="wrap"><table><thead><tr><th>Username</th><th>Name</th><th>Last sign-in</th><th>Made</th><th></th></tr></thead><tbody id="chz"></tbody></table></div>
+    <p class="note">Anyone can make a Chausima Account at chausima.com/account. It opens Chausima tools (like the Suite) but has no inbox. Turning an account off stops it signing in straight away; deleting removes it for good. Your own account (shiv) is protected. Mailboxes are in <a href="https://mail.chausima.com/admin" style="color:var(--blue)">Chausima Mail admin</a>.</p>
   </section>
 
   <section id="t-log" hidden>
@@ -246,6 +255,24 @@ function drawPeople() {
   }).join("") || '<tr><td colspan="5" class="note">No accounts match.</td></tr>';
 }
 
+/* ---- Chausima Accounts ---- */
+var chzList = [];
+function loadChz() { return call("chz_users").then(function (j) { chzList = j.users; drawChz(); }).catch(function (e) { toast(e.message); }); }
+function drawChz() {
+  var q = $("findChz").value.trim().toLowerCase(), week = Date.now() - 7 * 864e5;
+  $("chzCards").innerHTML = card("Accounts", chzList.length, "") +
+    card("New this week", chzList.filter(function (u) { return Date.parse(u.created + "Z") > week; }).length, "") +
+    card("Turned off", chzList.filter(function (u) { return u.disabled; }).length, "");
+  $("chz").innerHTML = chzList.filter(function (u) { return !q || (u.username + " " + u.name).toLowerCase().indexOf(q) > -1; }).map(function (u) {
+    var own = u.username === "shiv";
+    return "<tr><td>" + esc(u.username) + "@chausima.com" + (u.disabled ? ' <span class="pill bad"><span class="dot"></span>off</span>' : "") + "</td><td>" + esc(u.name) +
+      "</td><td>" + esc((u.last || "never").replace("T", " ")) + "</td><td>" + esc(u.created.slice(0, 10)) + '</td><td class="act">' +
+      (own ? '<span class="note">You</span>' : '<button class="btn" data-chzoff="' + esc(u.id) + '" data-off="' + (u.disabled ? "0" : "1") + '">' + (u.disabled ? "Turn on" : "Turn off") +
+      '</button> <button class="btn danger" data-chzdel="' + esc(u.id) + '">Delete</button>') + "</td></tr>";
+  }).join("") || '<tr><td colspan="5" class="note">No Chausima Accounts yet.</td></tr>';
+}
+$("findChz").addEventListener("input", drawChz);
+
 /* ---- log ---- */
 function loadLog() {
   return call("audit").then(function (j) {
@@ -273,6 +300,7 @@ function show(tab) {
   document.querySelectorAll("main section").forEach(function (s) { s.hidden = s.id !== "t-" + tab; });
   if (tab === "people" && !loaded.people) { loaded.people = 1; loadPeople(); }
   if (tab === "log") loadLog();
+  if (tab === "chausima") loadChz();
   try { history.replaceState(null, "", "#" + tab); } catch (e) {}
 }
 document.querySelector("nav").addEventListener("click", function (e) { var b = e.target.closest("button[data-tab]"); if (b) show(b.dataset.tab); });
@@ -298,6 +326,17 @@ document.addEventListener("click", function (e) {
   }
   if (b.dataset.logs) {
     return call("logs", { name: b.dataset.logs }).then(function (j) { var p = $("logs"); p.textContent = "— " + b.dataset.logs + " (last 120 lines) —\n" + j.text; p.hidden = false; p.scrollTop = p.scrollHeight; p.scrollIntoView({ behavior: "smooth" }); }).catch(function (e) { toast(e.message); });
+  }
+  if (b.dataset.chzoff) {
+    var off = b.dataset.off === "1";
+    return call("chz_disable", { id: b.dataset.chzoff, off: off }).then(function () { toast(off ? "Turned off." : "Turned on."); loadChz(); }).catch(function (e) { toast(e.message); });
+  }
+  if (b.dataset.chzdel) {
+    var cu = chzList.filter(function (x) { return x.id === b.dataset.chzdel; })[0]; if (!cu) return;
+    return confirmTyped("Delete " + cu.username + "@chausima.com?", "Their Chausima Account is removed for good and they can't sign in any more. Their Suite documents stay in the Suite until removed there. This can't be undone.", cu.username, "Delete for good").then(function (typed) {
+      if (!typed) return;
+      return call("chz_delete", { id: cu.id, confirm: typed }).then(function (j) { toast("Deleted " + j.deleted + "."); loadChz(); }).catch(function (e) { toast(e.message); });
+    });
   }
   if (b.dataset.del) {
     var u = people.filter(function (x) { return x.id === b.dataset.del; })[0]; if (!u) return;
