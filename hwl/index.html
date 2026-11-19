@@ -29,7 +29,7 @@ nav{display:flex;gap:4px;padding:10px 20px;overflow-x:auto;border-bottom:1px sol
 nav button{border:0;background:none;color:var(--soft);padding:7px 12px;border-radius:999px;cursor:pointer;white-space:nowrap}
 nav button[aria-selected="true"]{background:var(--panel2);color:var(--ink);font-weight:600}
 main{max-width:1060px;margin:0 auto;padding:20px 16px 60px}
-section[hidden]{display:none}
+[hidden]{display:none!important}
 h2{font-size:1rem;margin:22px 0 10px}
 h2:first-child{margin-top:0}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
@@ -80,6 +80,15 @@ dialog input{width:100%;margin:8px 0 14px}
 </header>
 
 <div id="gate"><h2>Checking your sign-in…</h2></div>
+<div id="codeBox" hidden style="position:fixed;inset:0;z-index:9999;display:grid;place-items:center;padding:16px;background:rgba(10,12,18,.78)">
+  <form id="codeForm" role="dialog" aria-modal="true" aria-labelledby="codeT" style="width:100%;max-width:360px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:18px;padding:22px">
+    <h2 id="codeT" style="margin:0 0 6px">Admin code</h2>
+    <p class="note" style="margin:0 0 14px">Enter the code only you know. Two wrong codes within a minute lock it for 30 minutes.</p>
+    <input id="codeIn" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Admin code" maxlength="64" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);font-size:1.1rem">
+    <p id="codeMsg" role="alert" style="min-height:1.4em;margin:8px 0;color:#f87171;font-size:.9rem"></p>
+    <button class="btn primary" type="submit" style="width:100%">Unlock</button>
+  </form>
+</div>
 
 <div id="app" hidden>
 <nav role="tablist" aria-label="HWL Admin sections">
@@ -225,13 +234,41 @@ var toastT;
 function toast(m) { var t = $("toast"); t.textContent = m; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(function () { t.hidden = true; }, 4000); }
 function gate(html) { $("gate").innerHTML = html; $("gate").hidden = false; $("app").hidden = true; }
 
-function call(action, extra) {
+/* Admin code: after signing in, HWL Admin asks for the code only Shiv knows. The agent hands back an unlock
+   that lasts 30 minutes in this tab. Two wrong codes within a minute lock code entry for 30 minutes. */
+var pinWait = null;
+function unlockTok() { try { return sessionStorage.getItem("hwl.unlock") || ""; } catch (e) { return ""; } }
+function askCode() {
+  if (pinWait) return pinWait;
+  pinWait = new Promise(function (done) {
+    var d = $("codeBox"), f = $("codeForm"), inp = $("codeIn"), msg = $("codeMsg");
+    d.hidden = false; msg.textContent = ""; inp.value = ""; setTimeout(function () { inp.focus(); }, 50);
+    f.onsubmit = function (e) {
+      e.preventDefault(); var v = inp.value; if (!v) return;
+      var btn = f.querySelector("button"); btn.disabled = true; msg.textContent = "Checking…";
+      sb.auth.getSession().then(function (r) {
+        var s = r.data && r.data.session; if (!s) throw new Error("Sign in again.");
+        return fetch(API, { method: "POST", headers: { "content-type": "application/json", Authorization: "Bearer " + s.access_token }, body: JSON.stringify({ action: "unlock", code: v }) });
+      }).then(function (r) { return r.json(); }).then(function (j) {
+        btn.disabled = false; inp.value = "";
+        if (j.unlock) { try { sessionStorage.setItem("hwl.unlock", j.unlock); } catch (e) {} d.hidden = true; pinWait = null; done(); }
+        else { msg.textContent = j.error || "That didn't work."; inp.focus(); }
+      }).catch(function (e) { btn.disabled = false; msg.textContent = e.message || "Couldn't reach HWL Admin."; });
+    };
+  });
+  return pinWait;
+}
+function call(action, extra, again) {
   return sb.auth.getSession().then(function (r) {
     var s = r.data && r.data.session; if (!s) throw new Error("Sign in again.");
     var body = Object.assign({ action: action }, extra || {});
-    return fetch(API, { method: "POST", headers: { "content-type": "application/json", Authorization: "Bearer " + s.access_token }, body: JSON.stringify(body) });
+    return fetch(API, { method: "POST", headers: { "content-type": "application/json", Authorization: "Bearer " + s.access_token, "X-HWL-Unlock": unlockTok() }, body: JSON.stringify(body) });
   }).then(function (r) {
     return r.json().catch(function () { return { error: "The HWL Admin agent isn't answering (is it installed?)." }; }).then(function (j) {
+      if (r.status === 403 && j.pin && !again) {
+        try { sessionStorage.removeItem("hwl.unlock"); } catch (e) {}
+        return askCode().then(function () { return call(action, extra, true); });
+      }
       if (!r.ok || j.error) throw new Error(j.error || "Something went wrong.");
       return j;
     });
